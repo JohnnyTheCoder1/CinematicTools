@@ -68,6 +68,12 @@ namespace util
 
   BOOL WriteMemory(DWORD_PTR, const void*, DWORD);
 
+  // Memory safety helpers
+  // Returns true if the pointer appears to be readable for at least `bytes` bytes.
+  bool IsPtrReadable(const void* ptr, size_t bytes = 1);
+  // Returns true if [addr, addr+size) lies within the specified module's image range.
+  bool IsAddressInModule(HMODULE hModule, const void* addr, size_t size);
+
   namespace math
   {
     float CatmullRomInterpolate(float y0, float y1, float y2, float y3, float mu);

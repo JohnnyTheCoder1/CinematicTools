@@ -7,6 +7,8 @@
 #include <boost/chrono.hpp>
 #include <fstream>
 #include <string>
+#include <Psapi.h>
+#pragma comment(lib, "Psapi.lib")
 
 static const char* g_gameName = "Alien: Isolation";
 static const char* g_moduleName = "AI.exe";
@@ -62,7 +64,17 @@ bool Main::Initialize()
   util::log::Write("Cinematic Tools for %s\n", g_gameName);
 
   // Needed for ImGui + other functionality
-  g_gameHwnd = FindWindowA(g_className, NULL);
+  // Window and module may not be ready immediately after injection; wait up to a few seconds
+  {
+    const int maxTries = 200; // ~10 seconds
+    int tries = 0;
+    while (tries++ < maxTries)
+    {
+      g_gameHwnd = FindWindowA(g_className, NULL);
+      if (g_gameHwnd) break;
+      Sleep(50);
+    }
+  }
   if (g_gameHwnd == NULL)
   {
     util::log::Error("Failed to retrieve window handle, GetLastError 0x%X", GetLastError());
@@ -70,33 +82,105 @@ bool Main::Initialize()
   }
 
   // Used for relative offsets
-  g_gameHandle = GetModuleHandleA(g_moduleName);
+  {
+    const int maxTries = 200; // ~10 seconds
+    int tries = 0;
+    while (tries++ < maxTries)
+    {
+      g_gameHandle = GetModuleHandleA(g_moduleName);
+      if (g_gameHandle) break;
+      Sleep(50);
+    }
+  }
   if (g_gameHandle == NULL)
   {
     util::log::Error("Failed to retrieve module handle, GetLastError 0x%X", GetLastError());
     return false;
   }
 
-  g_dxgiSwapChain = CATHODE::D3D::Singleton()->m_pSwapChain;//fb::DxRenderer::Singleton()->m_pScreen->m_pSwapChain; // Fetch SwapChain
-  g_d3d11Device = CATHODE::D3D::Singleton()->m_pDevice;// fb::DxRenderer::Singleton()->m_pDevice; // Fetch ID3D11Device
-  if (g_d3d11Device)
-    g_d3d11Device->GetImmediateContext(&g_d3d11Context);
-
-  if (!g_d3d11Context || !g_d3d11Device || !g_dxgiSwapChain)
+  // Safely resolve D3D device/swapchain from game's singleton
   {
-    util::log::Error("Failed to retrieve Dx11 interfaces");
-    util::log::Error("Device 0x%X DeviceContext 0x%X SwapChain 0x%X", g_d3d11Device, g_d3d11Context, g_dxgiSwapChain);
-    return false;
+    MODULEINFO modInfo{ 0 };
+    if (!GetModuleInformation(GetCurrentProcess(), g_gameHandle, &modInfo, sizeof(modInfo)))
+      util::log::Warning("GetModuleInformation failed, GetLastError 0x%X", GetLastError());
+
+    int d3dSingletonAddr = util::offsets::GetOffset("OFFSET_D3D");
+    if (!util::IsAddressInModule(g_gameHandle, (void*)d3dSingletonAddr, sizeof(void*)))
+    {
+      util::log::Error("OFFSET_D3D (0x%X) is outside module image. Likely version mismatch.", d3dSingletonAddr);
+      return false;
+    }
+
+    CATHODE::D3D* pD3D = nullptr;
+    __try
+    {
+      pD3D = *(CATHODE::D3D**)d3dSingletonAddr;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+      util::log::Error("Access violation while reading D3D singleton at 0x%X. Offsets likely outdated.", d3dSingletonAddr);
+      return false;
+    }
+
+    if (!util::IsPtrReadable(pD3D, sizeof(void*)))
+    {
+      util::log::Error("D3D singleton pointer is not readable: 0x%p", pD3D);
+      return false;
+    }
+
+    // Wait until the device/swapchain are initialized by the game (up to ~10s)
+    const int maxTries = 200;
+    int tries = 0;
+    while (tries++ < maxTries)
+    {
+      g_d3d11Device = pD3D->m_pDevice;
+      g_dxgiSwapChain = pD3D->m_pSwapChain;
+      if (g_d3d11Device && g_dxgiSwapChain)
+        break;
+      Sleep(50);
+    }
+
+    if (g_d3d11Device)
+      g_d3d11Device->GetImmediateContext(&g_d3d11Context);
+
+    if (!g_d3d11Context || !g_d3d11Device || !g_dxgiSwapChain)
+    {
+      util::log::Error("Failed to retrieve Dx11 interfaces");
+      util::log::Error("Device 0x%X DeviceContext 0x%X SwapChain 0x%X", g_d3d11Device, g_d3d11Context, g_dxgiSwapChain);
+      return false;
+    }
   }
 
   // This disables the object glow thing
-  BYTE GlowPatch[7] = { 0x80, 0xB9, 0x65, 0x70, 0x02, 0x00, 0x01 };
-  util::WriteMemory((int)g_gameHandle + 0x3A3494, GlowPatch, 7);
+  // Apply small byte patch, but only if target lies within module image
+  {
+    BYTE GlowPatch[7] = { 0x80, 0xB9, 0x65, 0x70, 0x02, 0x00, 0x01 };
+    void* patchAddr = (void*)((int)g_gameHandle + 0x3A3494);
+    if (util::IsAddressInModule(g_gameHandle, patchAddr, sizeof(GlowPatch)))
+    {
+      if (!util::WriteMemory((DWORD_PTR)patchAddr, GlowPatch, (DWORD)sizeof(GlowPatch)))
+        util::log::Warning("Glow patch VirtualProtect/WriteMemory failed at %p", patchAddr);
+    }
+    else
+    {
+      util::log::Warning("Skipping glow patch: address %p outside module image (possible version mismatch)", patchAddr);
+    }
+  }
 
   // Make timescale writable
-  DWORD dwOld = 0;
-  if (!VirtualProtect(reinterpret_cast<LPVOID>(util::offsets::GetOffset("OFFSET_TIMESCALE")), sizeof(double), PAGE_READWRITE, &dwOld))
-    util::log::Warning("Could not get write permissions to timescale");
+  {
+    int tsAddr = util::offsets::GetOffset("OFFSET_TIMESCALE");
+    if (util::IsAddressInModule(g_gameHandle, (void*)tsAddr, sizeof(double)))
+    {
+      DWORD dwOld = 0;
+      if (!VirtualProtect(reinterpret_cast<LPVOID>(tsAddr), sizeof(double), PAGE_READWRITE, &dwOld))
+        util::log::Warning("Could not get write permissions to timescale (addr 0x%X)", tsAddr);
+    }
+    else
+    {
+      util::log::Warning("Skipping timescale protect: address 0x%X outside module image", tsAddr);
+    }
+  }
 
   // Retrieve game version and make a const variable for whatever version
   // the tools support. If versions mismatch, scan for offsets.

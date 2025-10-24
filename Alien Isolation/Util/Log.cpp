@@ -40,6 +40,7 @@ namespace
 
 void log::Init()
 {
+  if (pfileout) return; // already initialized
   AllocConsole();
   freopen_s(&pfstdout, "CONOUT$", "w", stdout);
   freopen_s(&pfstdin, "CONIN$", "r", stdin);

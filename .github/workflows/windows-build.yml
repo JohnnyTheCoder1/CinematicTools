@@ -1,0 +1,52 @@
+name: Build CT_AlienIsolation (Windows)
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore "Alien Isolation/CT_AlienIsolation.sln"
+
+      - name: Build Win32 Release
+        run: msbuild "Alien Isolation/CT_AlienIsolation.sln" /t:Build /p:Configuration=Release /p:Platform=Win32 /m
+
+      - name: Build x64 Release
+        run: msbuild "Alien Isolation/CT_AlienIsolation.sln" /t:Build /p:Configuration=Release /p:Platform=x64 /m
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          $patterns = @(
+            'Build/*.dll',
+            'Build/*.pdb',
+            'Alien Isolation/**/Release/*.dll',
+            'Alien Isolation/**/Release/*.pdb',
+            'Alien Isolation/**/x64/Release/*.dll',
+            'Alien Isolation/**/x64/Release/*.pdb'
+          )
+          foreach ($p in $patterns) { Get-ChildItem -Path $p -ErrorAction SilentlyContinue | Copy-Item -Destination artifacts -Force }
+          Get-ChildItem artifacts | Format-Table -AutoSize
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CT_AlienIsolation-binaries
+          path: artifacts
+          if-no-files-found: warn

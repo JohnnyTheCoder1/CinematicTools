@@ -221,16 +221,41 @@ void util::hooks::Init()
   if (status != MH_OK)
     util::log::Error("Failed to initialize MinHook, MH_STATUS 0x%X", status);
 
-  CreateHook("CameraUpdate", util::offsets::GetOffset("OFFSET_CAMERAUPDATE"), hCameraUpdate, &oCameraUpdate);
-  //CreateHook("InputUpdate", util::offsets::GetOffset("OFFSET_INPUTUPDATE"), hInputUpdate, &oInputUpdate);
-  CreateHook("GamepadUpdate", util::offsets::GetOffset("OFFSET_GAMEPADUPDATE"), hGamepadUpdate, &oGamepadUpdate);
-  CreateHook("PostProcessUpdate", util::offsets::GetOffset("OFFSET_POSTPROCESSUPDATE"), hPostProcessUpdate, &oPostProcessUpdate);
-  CreateHook("TonemapUpdate", util::offsets::GetOffset("OFFSET_TONEMAPUPDATE"), hTonemapSettings, &oTonemapUpdate);
+  auto safeCreate = [](const char* name, const char* key, auto hook, auto original)
+  {
+    int addr = util::offsets::GetOffset(key);
+    if (!util::IsAddressInModule(g_gameHandle, (void*)addr, 16))
+    {
+      util::log::Warning("Skipping hook %s: address 0x%X outside module image", name, addr);
+      return;
+    }
+    CreateHook(name, addr, hook, original);
+  };
+
+  safeCreate("CameraUpdate", "OFFSET_CAMERAUPDATE", hCameraUpdate, &oCameraUpdate);
+  //safeCreate("InputUpdate", "OFFSET_INPUTUPDATE", hInputUpdate, &oInputUpdate);
+  safeCreate("GamepadUpdate", "OFFSET_GAMEPADUPDATE", hGamepadUpdate, &oGamepadUpdate);
+  safeCreate("PostProcessUpdate", "OFFSET_POSTPROCESSUPDATE", hPostProcessUpdate, &oPostProcessUpdate);
+  safeCreate("TonemapUpdate", "OFFSET_TONEMAPUPDATE", hTonemapSettings, &oTonemapUpdate);
   //CreateHook("AICombatManagerUpdate", util::offsets::GetOffset("OFFSET_COMBATMANAGERUPDATE"), hCombatManagerUpdate, &oCombatManagerUpdate);
   
   CreateHook("SetCursorPos", (int)GetProcAddress(GetModuleHandleA("user32.dll"), "SetCursorPos"), hSetCursorPos, &oSetCursorPos);
 
-  CreateVTableHook("SwapChainPresent", (PDWORD*)g_dxgiSwapChain, hIDXGISwapChain_Present, 8, &oIDXGISwapChain_Present);
+  if (g_dxgiSwapChain)
+  {
+    __try
+    {
+      CreateVTableHook("SwapChainPresent", (PDWORD*)g_dxgiSwapChain, hIDXGISwapChain_Present, 8, &oIDXGISwapChain_Present);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+      util::log::Error("Access violation while creating VTable hook on SwapChain. Skipping Present hook.");
+    }
+  }
+  else
+  {
+    util::log::Warning("SwapChain is null; skipping Present VTable hook.");
+  }
 }
 
 // In some cases it's useful or even required to disable all hooks or just certain ones

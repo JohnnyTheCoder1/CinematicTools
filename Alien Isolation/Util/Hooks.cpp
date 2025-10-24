@@ -8,6 +8,8 @@
 #include <unordered_map>
 #include <Windows.h>
 
+#pragma comment(lib, "d3d11.lib")
+
 // Function definitions
 typedef HRESULT(__stdcall* tIDXGISwapChain_Present)(IDXGISwapChain*, UINT, UINT);
 typedef BOOL(WINAPI* tSetCursorPos)(int, int);

@@ -10,7 +10,7 @@ Use Visual Studio 2022 (MSVC v143 toolset) to compile, and make sure to restore 
 
 Alternatively, a GitHub Actions workflow builds Release binaries on Windows and publishes artifacts on every PR to master. See `.github/workflows/windows-build.yml`.
 
-Artifacts include the built `CT_AlienIsolation.dll` for Win32 and (if configured) x64.
+Artifacts now include architecture-specific filenames (`CT_AlienIsolation.Win32.dll` and, for experimental coverage, `CT_AlienIsolation.x64.dll`). Use the Win32 build for the shipping game; the x64 binary is non-functional without significant offset work.
 
 ### How to use
 

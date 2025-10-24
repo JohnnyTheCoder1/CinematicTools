@@ -27,6 +27,7 @@ public:
   bool IsEnabled() { return m_Enabled; }
   bool HasMouseFocus() { return m_Enabled && m_HasMouseFocus; }
   bool HasKeyboardFocus() { return m_Enabled && m_HasKeyboardFocus; }
+  bool IsReady() const { return m_IsInitialized; }
 
   void Toggle();
   void ShowUpdateNotes();
@@ -53,6 +54,7 @@ private:
   bool m_HasKeyboardFocus;
   bool m_HasSeenWarning;
   bool m_ShowUpdateNotes;
+  bool m_IsInitialized;
 
 public:
   UI(UI const&) = delete;

@@ -24,14 +24,19 @@ UI::UI() :
   m_HasKeyboardFocus(false),
   m_HasMouseFocus(false),
   m_IsResizing(false),
-  m_pRTV(nullptr)
+  m_pRTV(nullptr),
+  m_IsInitialized(false)
 {
 }
 
 UI::~UI()
 {
-  ImGui_ImplDX11_Shutdown();
-  ImGui::DestroyContext();
+  if (m_IsInitialized)
+  {
+    ImGui_ImplDX11_Shutdown();
+    ImGui::DestroyContext();
+    m_IsInitialized = false;
+  }
 }
 
 bool UI::Initialize()
@@ -114,6 +119,7 @@ bool UI::Initialize()
    if (!CreateRenderTarget())
      return false;
 
+  m_IsInitialized = true;
   util::log::Ok("UI Initialized");
   UI::Toggle();
   return true;
@@ -121,7 +127,7 @@ bool UI::Initialize()
 
 void UI::BindRenderTarget()
 {
-  if (m_IsResizing || !m_pRTV) return;
+  if (!m_IsInitialized || m_IsResizing || !m_pRTV) return;
 
   ID3D11RenderTargetView* pRtv = m_pRTV.Get();
   g_d3d11Context->OMSetRenderTargets(1, &pRtv, nullptr);
@@ -137,6 +143,7 @@ static ImVec2 ScaledImVec2(float x, float y)
 
 void UI::Draw()
 {
+  if (!m_IsInitialized) return;
   if (!m_Enabled) return;
   if (m_IsResizing)
   {
@@ -255,6 +262,7 @@ void UI::Draw()
 
 void UI::OnResize()
 {
+  if (!m_IsInitialized) return;
   // Backbuffer needs to be resized when the window size/resolution changes.
   // However it's bound to the UI's RenderTarget (CreateRenderTarget()), so
   // it needs to be released before the backbuffer can be resized.
@@ -268,11 +276,15 @@ void UI::OnResize()
 
 void UI::Update(float dt)
 {
+  if (!m_IsInitialized) return;
   // For fancy background fading effects
 }
 
 void UI::Toggle()
 {
+  if (!m_IsInitialized)
+    return;
+
   m_Enabled = !m_Enabled;
   ClipCursor(NULL);
   CATHODE::ShowMouse(m_Enabled);

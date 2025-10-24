@@ -15,6 +15,15 @@ CTRenderer::~CTRenderer()
 
 }
 
+bool CTRenderer::IsReady() const
+{
+  return m_PrimitiveBatch != nullptr &&
+         m_CommonStates != nullptr &&
+         m_PrimitiveEffect != nullptr &&
+         m_ModelEffect != nullptr &&
+         m_MatrixBuffer != nullptr;
+}
+
 bool CTRenderer::Initialize()
 {
   util::log::Write("Initializing renderer");

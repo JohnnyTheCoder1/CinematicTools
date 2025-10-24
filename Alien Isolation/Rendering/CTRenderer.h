@@ -60,6 +60,7 @@ public:
   void DrawDepthBuffer();
 
   DepthConstants& GetDepthConstants() { return m_DepthConstants; }
+  bool IsReady() const;
 
 private:
   bool CreateRenderTarget();

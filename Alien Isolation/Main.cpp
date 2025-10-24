@@ -98,7 +98,15 @@ bool Main::Initialize()
     return false;
   }
 
-  // Safely resolve D3D device/swapchain from game's singleton
+  if (!util::hooks::Init())
+    return false;
+
+  bool interfacesFromSingleton = false;
+  g_d3d11Device = nullptr;
+  g_d3d11Context = nullptr;
+  g_dxgiSwapChain = nullptr;
+
+  // Try to resolve DirectX interfaces from the game's singleton first.
   {
     MODULEINFO modInfo{ 0 };
     if (!GetModuleInformation(GetCurrentProcess(), g_gameHandle, &modInfo, sizeof(modInfo)))
@@ -107,72 +115,91 @@ bool Main::Initialize()
     int d3dSingletonAddr = util::offsets::GetRelOffset("OFFSET_D3D");
     uintptr_t d3dSingletonAbs = (uintptr_t)g_gameHandle + (uintptr_t)d3dSingletonAddr;
 
-    if (!util::IsAddressInModule(g_gameHandle,
-      reinterpret_cast<void*>(d3dSingletonAbs), sizeof(void*)))
+    if (!util::IsAddressInModule(g_gameHandle, reinterpret_cast<void*>(d3dSingletonAbs), sizeof(void*)))
     {
-      util::log::Error("OFFSET_D3D (0x%X) is outside module image. Likely version mismatch.", d3dSingletonAddr);
-      return false;
+      util::log::Warning("OFFSET_D3D (0x%X) is outside module image. Likely version mismatch.", d3dSingletonAddr);
     }
-
-    CATHODE::D3D** ppD3D = reinterpret_cast<CATHODE::D3D**>(d3dSingletonAbs);
-    CATHODE::D3D* pD3D = nullptr;
-
-    const int maxPtrTries = 200; // ~10 seconds total wait
-    int ptrTries = 0;
-    while (ptrTries++ < maxPtrTries)
+    else
     {
-      if (!util::IsPtrReadable(ppD3D, sizeof(*ppD3D)))
+      CATHODE::D3D** ppD3D = reinterpret_cast<CATHODE::D3D**>(d3dSingletonAbs);
+
+      const int maxPtrTries = 200; // ~10 seconds total wait
+      int ptrTries = 0;
+      while (ptrTries++ < maxPtrTries)
       {
+        if (!util::IsPtrReadable(ppD3D, sizeof(*ppD3D)))
+        {
+          Sleep(50);
+          continue;
+        }
+
+        CATHODE::D3D* pD3D = *ppD3D;
+        if (!pD3D)
+        {
+          Sleep(50);
+          continue;
+        }
+
+        if (!util::IsPtrReadable(pD3D, sizeof(void*) * 2))
+        {
+          Sleep(50);
+          continue;
+        }
+
+        g_d3d11Device = pD3D->m_pDevice;
+        g_dxgiSwapChain = pD3D->m_pSwapChain;
+        if (g_d3d11Device && g_dxgiSwapChain)
+          break;
+
         Sleep(50);
-        continue;
       }
 
-      pD3D = *ppD3D;
-      if (pD3D && util::IsPtrReadable(pD3D, sizeof(void*)))
-        break;
-
-      Sleep(50);
+      if (g_d3d11Device && g_dxgiSwapChain)
+      {
+        g_d3d11Device->GetImmediateContext(&g_d3d11Context);
+        if (g_d3d11Context)
+        {
+          interfacesFromSingleton = true;
+          util::log::Ok("Retrieved DirectX interfaces via singleton offset 0x%X", d3dSingletonAddr);
+        }
+        else
+        {
+          util::log::Warning("Singleton provided device but context retrieval failed");
+          g_d3d11Device = nullptr;
+          g_dxgiSwapChain = nullptr;
+          g_d3d11Context = nullptr;
+        }
+      }
+      else
+      {
+        util::log::Warning("D3D singleton pointer did not yield device/swapchain (addr 0x%X)", d3dSingletonAddr);
+        g_d3d11Device = nullptr;
+        g_dxgiSwapChain = nullptr;
+        g_d3d11Context = nullptr;
+      }
     }
+  }
 
-    if (!util::IsPtrReadable(ppD3D, sizeof(*ppD3D)))
-    {
-      util::log::Error("D3D singleton address not readable after waiting: 0x%X", d3dSingletonAddr);
-      return false;
-    }
+  if (!interfacesFromSingleton)
+  {
+    util::log::Write("Waiting for Present hook to expose DirectX interfaces...");
 
-    if (!pD3D)
-    {
-      util::log::Error("D3D singleton pointer stayed null (addr 0x%X) after waiting", d3dSingletonAddr);
-      return false;
-    }
-
-    if (!util::IsPtrReadable(pD3D, sizeof(void*)))
-    {
-      util::log::Error("D3D singleton pointer is not readable: 0x%p", pD3D);
-      return false;
-    }
-
-    // Wait until the device/swapchain are initialized by the game (up to ~10s)
-    const int maxTries = 200;
+    const int maxTries = 400; // ~20 seconds
     int tries = 0;
     while (tries++ < maxTries)
     {
-      g_d3d11Device = pD3D->m_pDevice;
-      g_dxgiSwapChain = pD3D->m_pSwapChain;
-      if (g_d3d11Device && g_dxgiSwapChain)
+      if (g_d3d11Device && g_d3d11Context && g_dxgiSwapChain)
         break;
       Sleep(50);
     }
 
-    if (g_d3d11Device)
-      g_d3d11Device->GetImmediateContext(&g_d3d11Context);
-
-    if (!g_d3d11Context || !g_d3d11Device || !g_dxgiSwapChain)
+    if (!g_d3d11Device || !g_d3d11Context || !g_dxgiSwapChain)
     {
-      util::log::Error("Failed to retrieve Dx11 interfaces");
-      util::log::Error("Device 0x%X DeviceContext 0x%X SwapChain 0x%X", g_d3d11Device, g_d3d11Context, g_dxgiSwapChain);
+      util::log::Error("Failed to capture DirectX interfaces via Present hook fallback");
       return false;
     }
+
+    util::log::Ok("Captured DirectX interfaces via Present hook fallback");
   }
 
   // This disables the object glow thing
@@ -224,7 +251,7 @@ bool Main::Initialize()
   if (!m_pUI->Initialize())
     return false;
 
-  util::hooks::Init();
+  util::hooks::InstallGameHooks();
 
   // Subclass the window with a new WndProc to catch messages
   g_origWndProc = (WNDPROC)SetWindowLongPtr(g_gameHwnd, -4, (LONG_PTR)&WndProc);

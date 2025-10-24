@@ -24,7 +24,8 @@ namespace util
       bool Enabled;
     };
 
-    void Init();
+    bool Init();
+    void InstallGameHooks();
 
     // if name is empty, then perform on all hooks
     void SetHookState(bool enabled, std::string const& name = "");

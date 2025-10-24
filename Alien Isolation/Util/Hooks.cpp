@@ -9,7 +9,7 @@
 #include <Windows.h>
 
 // Function definitions
-typedef DWORD(WINAPI* tIDXGISwapChain_Present)(IDXGISwapChain*, UINT, UINT);
+typedef HRESULT(__stdcall* tIDXGISwapChain_Present)(IDXGISwapChain*, UINT, UINT);
 typedef BOOL(WINAPI* tSetCursorPos)(int, int);
 
 typedef int(__thiscall* tCameraUpdate)(CATHODE::AICameraManager*);
@@ -30,15 +30,39 @@ typedef bool(__thiscall* tCombatManagerUpdate)(void*, CATHODE::Character*);
 
 tIDXGISwapChain_Present oIDXGISwapChain_Present = nullptr;
 
-DWORD WINAPI hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncInterval, UINT Flags)
+HRESULT __stdcall hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncInterval, UINT Flags)
 {
-  if (!g_shutdown)
-  {
-    g_mainHandle->GetUI()->BindRenderTarget();
-    g_mainHandle->GetRenderer()->UpdateMatrices();
-    //g_mainHandle->GetCameraManager()->DrawTrack();
+  static bool loggedDeviceFailure = false;
 
-    g_mainHandle->GetUI()->Draw();
+  if (!g_dxgiSwapChain)
+    g_dxgiSwapChain = pSwapchain;
+
+  if (!g_d3d11Device)
+  {
+    HRESULT hr = pSwapchain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(&g_d3d11Device));
+    if (FAILED(hr) && !loggedDeviceFailure)
+    {
+      util::log::Warning("SwapChain::GetDevice failed while capturing interfaces, HRESULT 0x%X", hr);
+      loggedDeviceFailure = true;
+    }
+  }
+
+  if (g_d3d11Device && !g_d3d11Context)
+    g_d3d11Device->GetImmediateContext(&g_d3d11Context);
+
+  if (!g_shutdown && g_mainHandle)
+  {
+    CTRenderer* pRenderer = g_mainHandle->GetRenderer();
+    UI* pUI = g_mainHandle->GetUI();
+    CameraManager* pCameraManager = g_mainHandle->GetCameraManager();
+
+    if (pRenderer && pRenderer->IsReady() && pUI && pUI->IsReady() && pCameraManager)
+    {
+      pUI->BindRenderTarget();
+      pRenderer->UpdateMatrices();
+      //g_mainHandle->GetCameraManager()->DrawTrack();
+      pUI->Draw();
+    }
   }
 
   return oIDXGISwapChain_Present(pSwapchain, SyncInterval, Flags);
@@ -97,7 +121,8 @@ int __fastcall hGamepadUpdate(void* _this)
 
 BOOL WINAPI hSetCursorPos(int x, int y)
 {
-  if (g_mainHandle->GetUI()->IsEnabled())
+  UI* pUI = g_mainHandle ? g_mainHandle->GetUI() : nullptr;
+  if (pUI && pUI->IsEnabled())
     return TRUE;
 
   return oSetCursorPos(x, y);
@@ -154,26 +179,78 @@ char __stdcall hTonemapSettings(CATHODE::DayToneMapSettings* pTonemapSettings, i
 namespace
 {
   std::unordered_map<std::string, util::hooks::Hook> m_CreatedHooks;
+  bool g_minHookInitialized = false;
+  bool g_presentHookCreated = false;
+  bool g_gameHooksInstalled = false;
+
+  bool EnsureMinHookInitialized()
+  {
+    if (g_minHookInitialized)
+      return true;
+
+    MH_STATUS status = MH_Initialize();
+    if (status != MH_OK)
+    {
+      util::log::Error("Failed to initialize MinHook, MH_STATUS 0x%X", status);
+      return false;
+    }
+
+    g_minHookInitialized = true;
+    return true;
+  }
+
+  HWND CreateDummyWindow()
+  {
+    const char* className = "CTDummyWindowClass";
+
+    WNDCLASSEXA wc = { 0 };
+    wc.cbSize = sizeof(WNDCLASSEXA);
+    wc.style = CS_CLASSDC;
+    wc.lpfnWndProc = DefWindowProcA;
+    wc.hInstance = GetModuleHandleA(nullptr);
+    wc.lpszClassName = className;
+
+    if (!RegisterClassExA(&wc))
+    {
+      if (GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
+        return nullptr;
+    }
+
+    return CreateWindowExA(0, className, "CTDummyWindow", WS_OVERLAPPEDWINDOW, 0, 0, 100, 100, nullptr, nullptr, wc.hInstance, nullptr);
+  }
+
+  void DestroyDummyWindow(HWND hwnd)
+  {
+    if (!hwnd)
+      return;
+
+    const char* className = "CTDummyWindowClass";
+    DestroyWindow(hwnd);
+    UnregisterClassA(className, GetModuleHandleA(nullptr));
+  }
 }
 
 // Creates a normal function hook with MinHook, 
 // which places a jmp instruction at the start of the function.
 template <typename T>
-static void CreateHook(std::string const& name, int target, PVOID hook, T original)
+static bool CreateHook(std::string const& name, int target, PVOID hook, T original)
 {
+  if (!EnsureMinHookInitialized())
+    return false;
+
   LPVOID* pOriginal = reinterpret_cast<LPVOID*>(original);
   MH_STATUS result = MH_CreateHook((LPVOID)target, hook, pOriginal);
   if (result != MH_OK)
   {
-    util::log::Error("Could not create %s hook. MH_STATUS 0x%X error code 0x%X", name, result, GetLastError());
-    return;
+    util::log::Error("Could not create %s hook. MH_STATUS 0x%X error code 0x%X", name.c_str(), result, GetLastError());
+    return false;
   }
 
   result = MH_EnableHook((LPVOID)target);
   if (result != MH_OK)
   {
-    util::log::Error("Could not enable %s hook. MH_STATUS 0x%X error code 0x%X", name, result, GetLastError());
-    return;
+    util::log::Error("Could not enable %s hook. MH_STATUS 0x%X error code 0x%X", name.c_str(), result, GetLastError());
+    return false;
   }
 
   util::hooks::Hook hookInfo{ 0 };
@@ -182,6 +259,80 @@ static void CreateHook(std::string const& name, int target, PVOID hook, T origin
   hookInfo.Enabled = true;
 
   m_CreatedHooks.emplace(name, hookInfo);
+  return true;
+}
+
+static bool CreateDXGIPresentHook()
+{
+  if (g_presentHookCreated)
+    return true;
+
+  if (!EnsureMinHookInitialized())
+    return false;
+
+  HWND hwnd = CreateDummyWindow();
+  if (!hwnd)
+  {
+    util::log::Error("Failed to create dummy window for Present hook, GetLastError 0x%X", GetLastError());
+    return false;
+  }
+
+  DXGI_SWAP_CHAIN_DESC desc = { 0 };
+  desc.BufferCount = 1;
+  desc.BufferDesc.Width = 100;
+  desc.BufferDesc.Height = 100;
+  desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  desc.BufferDesc.RefreshRate.Numerator = 60;
+  desc.BufferDesc.RefreshRate.Denominator = 1;
+  desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+  desc.OutputWindow = hwnd;
+  desc.SampleDesc.Count = 1;
+  desc.Windowed = TRUE;
+  desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+
+  D3D_FEATURE_LEVEL featureLevels[] =
+  {
+    D3D_FEATURE_LEVEL_11_0,
+    D3D_FEATURE_LEVEL_10_1,
+    D3D_FEATURE_LEVEL_10_0,
+    D3D_FEATURE_LEVEL_9_3
+  };
+
+  D3D_FEATURE_LEVEL obtainedLevel = D3D_FEATURE_LEVEL_11_0;
+  IDXGISwapChain* pSwapChain = nullptr;
+  ID3D11Device* pDevice = nullptr;
+  ID3D11DeviceContext* pContext = nullptr;
+  UINT createFlags = 0;
+
+  HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, createFlags,
+    featureLevels, _countof(featureLevels), D3D11_SDK_VERSION, &desc, &pSwapChain, &pDevice, &obtainedLevel, &pContext);
+
+  if (FAILED(hr))
+  {
+    hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, createFlags,
+      featureLevels, _countof(featureLevels), D3D11_SDK_VERSION, &desc, &pSwapChain, &pDevice, &obtainedLevel, &pContext);
+  }
+
+  if (FAILED(hr))
+  {
+    util::log::Error("Failed to create dummy D3D11 device for Present hook, HRESULT 0x%X", hr);
+    DestroyDummyWindow(hwnd);
+    return false;
+  }
+
+  void** vtbl = *reinterpret_cast<void***>(pSwapChain);
+  bool hookCreated = CreateHook("SwapChainPresent", (int)vtbl[8], hIDXGISwapChain_Present, &oIDXGISwapChain_Present);
+
+  pSwapChain->Release();
+  pDevice->Release();
+  pContext->Release();
+  DestroyDummyWindow(hwnd);
+
+  if (!hookCreated)
+    return false;
+
+  g_presentHookCreated = true;
+  return true;
 }
 
 // Write to VTable
@@ -215,11 +366,24 @@ static void CreateVTableHook(std::string const& name, PDWORD* ppVTable, PVOID ho
   m_CreatedHooks.emplace(name, hookInfo);
 }
 
-void util::hooks::Init()
+bool util::hooks::Init()
 {
-  MH_STATUS status = MH_Initialize();
-  if (status != MH_OK)
-    util::log::Error("Failed to initialize MinHook, MH_STATUS 0x%X", status);
+  if (!EnsureMinHookInitialized())
+    return false;
+
+  if (!CreateDXGIPresentHook())
+    return false;
+
+  return true;
+}
+
+void util::hooks::InstallGameHooks()
+{
+  if (g_gameHooksInstalled)
+    return;
+
+  if (!EnsureMinHookInitialized())
+    return;
 
   auto safeCreate = [](const char* name, const char* key, auto hook, auto original)
   {
@@ -238,28 +402,14 @@ void util::hooks::Init()
   safeCreate("PostProcessUpdate", "OFFSET_POSTPROCESSUPDATE", hPostProcessUpdate, &oPostProcessUpdate);
   safeCreate("TonemapUpdate", "OFFSET_TONEMAPUPDATE", hTonemapSettings, &oTonemapUpdate);
   //CreateHook("AICombatManagerUpdate", util::offsets::GetOffset("OFFSET_COMBATMANAGERUPDATE"), hCombatManagerUpdate, &oCombatManagerUpdate);
-  
-  CreateHook("SetCursorPos", (int)GetProcAddress(GetModuleHandleA("user32.dll"), "SetCursorPos"), hSetCursorPos, &oSetCursorPos);
 
-  if (g_dxgiSwapChain)
-  {
-    if (util::IsPtrReadable(g_dxgiSwapChain, sizeof(void*)))
-    {
-      void** vtbl = *(void***)g_dxgiSwapChain;
-      if (util::IsPtrReadable(vtbl, (8 + 1) * sizeof(void*)))
-        CreateVTableHook("SwapChainPresent", (PDWORD*)g_dxgiSwapChain, hIDXGISwapChain_Present, 8, &oIDXGISwapChain_Present);
-      else
-        util::log::Error("SwapChain vtable not readable; skipping Present hook");
-    }
-    else
-    {
-      util::log::Error("SwapChain pointer not readable; skipping Present hook");
-    }
-  }
+  FARPROC setCursorProc = GetProcAddress(GetModuleHandleA("user32.dll"), "SetCursorPos");
+  if (setCursorProc)
+    CreateHook("SetCursorPos", (int)setCursorProc, hSetCursorPos, &oSetCursorPos);
   else
-  {
-    util::log::Warning("SwapChain is null; skipping Present VTable hook.");
-  }
+    util::log::Warning("Failed to locate SetCursorPos in user32.dll");
+
+  g_gameHooksInstalled = true;
 }
 
 // In some cases it's useful or even required to disable all hooks or just certain ones

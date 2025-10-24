@@ -81,7 +81,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -95,6 +95,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native;$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\x64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -109,7 +110,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-  <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -128,6 +129,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -197,7 +199,6 @@
   <ImportGroup Label="ExtensionTargets">
     <Import Project="packages\directxtk_desktop_2015.2019.5.31.1\build\native\directxtk_desktop_2015.targets" Condition="Exists('packages\directxtk_desktop_2015.2019.5.31.1\build\native\directxtk_desktop_2015.targets')" />
     <Import Project="packages\boost.1.72.0.0\build\boost.targets" Condition="Exists('packages\boost.1.72.0.0\build\boost.targets')" />
-    <Import Project="packages\minhook.1.3.3\build\native\minhook.targets" Condition="Exists('packages\minhook.1.3.3\build\native\minhook.targets')" />
     <Import Project="packages\boost_chrono-vc140.1.72.0.0\build\boost_chrono-vc140.targets" Condition="Exists('packages\boost_chrono-vc140.1.72.0.0\build\boost_chrono-vc140.targets')" />
     <Import Project="packages\boost_filesystem-vc140.1.72.0.0\build\boost_filesystem-vc140.targets" Condition="Exists('packages\boost_filesystem-vc140.1.72.0.0\build\boost_filesystem-vc140.targets')" />
     <Import Project="packages\boost_date_time-vc140.1.72.0.0\build\boost_date_time-vc140.targets" Condition="Exists('packages\boost_date_time-vc140.1.72.0.0\build\boost_date_time-vc140.targets')" />

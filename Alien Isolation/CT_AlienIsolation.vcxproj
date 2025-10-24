@@ -81,11 +81,12 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>../../../DirectXTK/Inc;../../../minhook-master/include;../../../boost_1_64_0-bin;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>../../../minhook-master/build/VC15/lib/Debug;../../../DirectXTK/Bin/Desktop_2017/Win32/Debug;../../../boost_1_64_0-bin/lib32-msvc-14.1;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native;$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\Win32\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libMinHook.x86.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -96,8 +97,8 @@
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
-      <AdditionalOptions>
-      </AdditionalOptions>
+      <AdditionalLibraryDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native;$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\x64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libMinHook.x64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -108,14 +109,15 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>../../../DirectXTK/Inc;../../../minhook-master/include;../../../boost_1_64_0-bin;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+  <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>../../../minhook-master/build/VC15/lib/Release;../../../DirectXTK/Bin/Desktop_2017/Win32/Release;../../../boost_1_64_0-bin/lib32-msvc-14.1;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native;$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\Win32\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libMinHook.x86.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -130,8 +132,8 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalOptions>
-      </AdditionalOptions>
+      <AdditionalLibraryDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native;$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libMinHook.x64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

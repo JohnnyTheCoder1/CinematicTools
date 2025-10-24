@@ -81,12 +81,12 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)ThirdParty\MinHook\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\lib;$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\Win32\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>libMinHook-x86-v141-mdd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\Win32\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -95,11 +95,11 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)ThirdParty\MinHook\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\lib;$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\x64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>libMinHook-x64-v141-mdd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\x64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -110,15 +110,15 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)ThirdParty\MinHook\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\lib;$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\Win32\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>libMinHook-x86-v141-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\Win32\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -129,13 +129,13 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)ThirdParty\MinHook\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(ProjectDir)packages\minhook.1.3.3\lib\native\lib;$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>libMinHook-x64-v141-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)packages\directxtk_desktop_2015.2019.5.31.1\lib\x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -152,6 +152,11 @@
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Rendering\CTRenderer.cpp" />
     <ClCompile Include="Rendering\ShaderStore.cpp" />
+    <ClCompile Include="ThirdParty\MinHook\src\buffer.c" />
+    <ClCompile Include="ThirdParty\MinHook\src\hook.c" />
+    <ClCompile Include="ThirdParty\MinHook\src\trampoline.c" />
+    <ClCompile Include="ThirdParty\MinHook\src\hde\hde32.c" />
+    <ClCompile Include="ThirdParty\MinHook\src\hde\hde64.c" />
     <ClCompile Include="Tools\CharacterController.cpp" />
     <ClCompile Include="Tools\VisualsController.cpp" />
     <ClCompile Include="UI.cpp" />
@@ -181,6 +186,14 @@
     <ClInclude Include="Rendering\CTRenderer.h" />
     <ClInclude Include="Rendering\ShaderStore.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="ThirdParty\MinHook\include\MinHook.h" />
+    <ClInclude Include="ThirdParty\MinHook\src\buffer.h" />
+    <ClInclude Include="ThirdParty\MinHook\src\trampoline.h" />
+    <ClInclude Include="ThirdParty\MinHook\src\hde\hde32.h" />
+    <ClInclude Include="ThirdParty\MinHook\src\hde\hde64.h" />
+    <ClInclude Include="ThirdParty\MinHook\src\hde\pstdint.h" />
+    <ClInclude Include="ThirdParty\MinHook\src\hde\table32.h" />
+    <ClInclude Include="ThirdParty\MinHook\src\hde\table64.h" />
     <ClInclude Include="Tools\CharacterController.h" />
     <ClInclude Include="Tools\VisualsController.h" />
     <ClInclude Include="UI.h" />
@@ -209,7 +222,6 @@
     </PropertyGroup>
     <Error Condition="!Exists('packages\directxtk_desktop_2015.2019.5.31.1\build\native\directxtk_desktop_2015.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\directxtk_desktop_2015.2019.5.31.1\build\native\directxtk_desktop_2015.targets'))" />
     <Error Condition="!Exists('packages\boost.1.72.0.0\build\boost.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\boost.1.72.0.0\build\boost.targets'))" />
-    <Error Condition="!Exists('packages\minhook.1.3.3\build\native\minhook.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\minhook.1.3.3\build\native\minhook.targets'))" />
     <Error Condition="!Exists('packages\boost_chrono-vc140.1.72.0.0\build\boost_chrono-vc140.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\boost_chrono-vc140.1.72.0.0\build\boost_chrono-vc140.targets'))" />
     <Error Condition="!Exists('packages\boost_filesystem-vc140.1.72.0.0\build\boost_filesystem-vc140.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\boost_filesystem-vc140.1.72.0.0\build\boost_filesystem-vc140.targets'))" />
     <Error Condition="!Exists('packages\boost_date_time-vc140.1.72.0.0\build\boost_date_time-vc140.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\boost_date_time-vc140.1.72.0.0\build\boost_date_time-vc140.targets'))" />

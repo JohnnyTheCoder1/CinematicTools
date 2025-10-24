@@ -37,6 +37,24 @@
     <Filter Include="Source Files\Tools">
       <UniqueIdentifier>{d5489722-4e47-49db-b8be-1231dbc72f8d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\ThirdParty">
+      <UniqueIdentifier>{0f8c4dbe-bdec-4fcb-84a3-2aa9edccd925}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ThirdParty\MinHook">
+      <UniqueIdentifier>{dd0d13fa-4c6e-47e3-8ae5-b38be2b9b47c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ThirdParty\MinHook\hde">
+      <UniqueIdentifier>{fc8d5f32-cae1-46d5-9f6a-6f0a7fe2f667}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ThirdParty">
+      <UniqueIdentifier>{f06d5d0e-e3fb-4210-823d-85416b97a3a4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ThirdParty\MinHook">
+      <UniqueIdentifier>{c54ce0d5-850f-4205-9ad2-47a554a05898}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ThirdParty\MinHook\hde">
+      <UniqueIdentifier>{6ad90022-211d-4a62-8d5e-058f61548f26}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="UI.cpp">
@@ -95,6 +113,21 @@
     </ClCompile>
     <ClCompile Include="Rendering\ShaderStore.cpp">
       <Filter>Source Files\Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\MinHook\src\buffer.c">
+      <Filter>Source Files\ThirdParty\MinHook</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\MinHook\src\hook.c">
+      <Filter>Source Files\ThirdParty\MinHook</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\MinHook\src\trampoline.c">
+      <Filter>Source Files\ThirdParty\MinHook</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\MinHook\src\hde\hde32.c">
+      <Filter>Source Files\ThirdParty\MinHook\hde</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\MinHook\src\hde\hde64.c">
+      <Filter>Source Files\ThirdParty\MinHook\hde</Filter>
     </ClCompile>
     <ClCompile Include="Tools\CharacterController.cpp">
       <Filter>Source Files\Tools</Filter>
@@ -169,6 +202,30 @@
     </ClInclude>
     <ClInclude Include="Rendering\ShaderStore.h">
       <Filter>Source Files\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\MinHook\include\MinHook.h">
+      <Filter>Header Files\ThirdParty\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\MinHook\src\buffer.h">
+      <Filter>Header Files\ThirdParty\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\MinHook\src\trampoline.h">
+      <Filter>Header Files\ThirdParty\MinHook</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\MinHook\src\hde\hde32.h">
+      <Filter>Header Files\ThirdParty\MinHook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\MinHook\src\hde\hde64.h">
+      <Filter>Header Files\ThirdParty\MinHook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\MinHook\src\hde\pstdint.h">
+      <Filter>Header Files\ThirdParty\MinHook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\MinHook\src\hde\table32.h">
+      <Filter>Header Files\ThirdParty\MinHook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\MinHook\src\hde\table64.h">
+      <Filter>Header Files\ThirdParty\MinHook\hde</Filter>
     </ClInclude>
     <ClInclude Include="Tools\CharacterController.h">
       <Filter>Source Files\Tools</Filter>

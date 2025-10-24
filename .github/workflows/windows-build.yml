@@ -24,10 +24,10 @@ jobs:
         run: nuget restore "Alien Isolation/CT_AlienIsolation.sln"
 
       - name: Build Win32 Release
-        run: msbuild "Alien Isolation/CT_AlienIsolation.sln" /t:Build /p:Configuration=Release /p:Platform=Win32 /m
+        run: msbuild "Alien Isolation/CT_AlienIsolation.vcxproj" /t:Build /p:Configuration=Release /p:Platform=Win32 /m
 
       - name: Build x64 Release
-        run: msbuild "Alien Isolation/CT_AlienIsolation.sln" /t:Build /p:Configuration=Release /p:Platform=x64 /m
+        run: msbuild "Alien Isolation/CT_AlienIsolation.vcxproj" /t:Build /p:Configuration=Release /p:Platform=x64 /m
 
       - name: Collect artifacts
         shell: pwsh

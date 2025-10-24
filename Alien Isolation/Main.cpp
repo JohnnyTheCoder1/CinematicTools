@@ -111,13 +111,38 @@ bool Main::Initialize()
       return false;
     }
 
-    if (!util::IsPtrReadable((void*)d3dSingletonAddr, sizeof(void*)))
+    CATHODE::D3D** ppD3D = reinterpret_cast<CATHODE::D3D**>(d3dSingletonAddr);
+    CATHODE::D3D* pD3D = nullptr;
+
+    const int maxPtrTries = 200; // ~10 seconds total wait
+    int ptrTries = 0;
+    while (ptrTries++ < maxPtrTries)
     {
-      util::log::Error("D3D singleton address not readable: 0x%X", d3dSingletonAddr);
+      if (!util::IsPtrReadable(ppD3D, sizeof(*ppD3D)))
+      {
+        Sleep(50);
+        continue;
+      }
+
+      pD3D = *ppD3D;
+      if (pD3D && util::IsPtrReadable(pD3D, sizeof(void*)))
+        break;
+
+      Sleep(50);
+    }
+
+    if (!util::IsPtrReadable(ppD3D, sizeof(*ppD3D)))
+    {
+      util::log::Error("D3D singleton address not readable after waiting: 0x%X", d3dSingletonAddr);
       return false;
     }
 
-    CATHODE::D3D* pD3D = *(CATHODE::D3D**)d3dSingletonAddr;
+    if (!pD3D)
+    {
+      util::log::Error("D3D singleton pointer stayed null (addr 0x%X) after waiting", d3dSingletonAddr);
+      return false;
+    }
+
     if (!util::IsPtrReadable(pD3D, sizeof(void*)))
     {
       util::log::Error("D3D singleton pointer is not readable: 0x%p", pD3D);

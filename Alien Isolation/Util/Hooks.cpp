@@ -35,6 +35,7 @@ tIDXGISwapChain_Present oIDXGISwapChain_Present = nullptr;
 HRESULT __stdcall hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncInterval, UINT Flags)
 {
   static bool loggedDeviceFailure = false;
+  static bool loggedFirstPresent = false;
 
   if (!g_dxgiSwapChain)
     g_dxgiSwapChain = pSwapchain;
@@ -51,6 +52,12 @@ HRESULT __stdcall hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncI
 
   if (g_d3d11Device && !g_d3d11Context)
     g_d3d11Device->GetImmediateContext(&g_d3d11Context);
+
+  if (!loggedFirstPresent)
+  {
+    util::log::Write("Present hook triggered; capturing DirectX interfaces");
+    loggedFirstPresent = true;
+  }
 
   if (!g_shutdown && g_mainHandle)
   {
@@ -334,6 +341,7 @@ static bool CreateDXGIPresentHook()
     return false;
 
   g_presentHookCreated = true;
+  util::log::Ok("Installed DXGI Present hook via dummy device");
   return true;
 }
 
@@ -377,6 +385,11 @@ bool util::hooks::Init()
     return false;
 
   return true;
+}
+
+bool util::hooks::IsPresentHookInstalled()
+{
+  return g_presentHookCreated;
 }
 
 void util::hooks::InstallGameHooks()

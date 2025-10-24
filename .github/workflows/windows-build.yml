@@ -1,0 +1,67 @@
+name: Build CT_AlienIsolation (Windows)
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore "Alien Isolation/CT_AlienIsolation.sln"
+
+      - name: Build Win32 Release
+        run: msbuild "Alien Isolation/CT_AlienIsolation.vcxproj" /t:Build /p:Configuration=Release /p:Platform=Win32 /m
+
+      - name: Build x64 Release
+        run: msbuild "Alien Isolation/CT_AlienIsolation.vcxproj" /t:Build /p:Configuration=Release /p:Platform=x64 /m
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          $artifactDir = 'artifacts'
+          New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+
+          $copies = @(
+            @{ Source = 'Build/CT_AlienIsolation.dll'; Destination = 'CT_AlienIsolation.Win32.dll' },
+            @{ Source = 'Build/CT_AlienIsolation.pdb'; Destination = 'CT_AlienIsolation.Win32.pdb' },
+            @{ SourcePattern = 'CT_Alien.*\Release\vc143.pdb'; Destination = 'vc143.Win32.pdb' },
+            @{ Source = 'Alien Isolation/x64/Release/CT_AlienIsolation.dll'; Destination = 'CT_AlienIsolation.x64.dll' },
+            @{ Source = 'Alien Isolation/x64/Release/CT_AlienIsolation.pdb'; Destination = 'CT_AlienIsolation.x64.pdb' },
+            @{ SourcePattern = 'CT_Alien.*\x64\Release\vc143.pdb'; Destination = 'vc143.x64.pdb' }
+          )
+
+          foreach ($item in $copies) {
+            if ($item.ContainsKey('Source') -and (Test-Path $item.Source)) {
+              Copy-Item -Path $item.Source -Destination (Join-Path $artifactDir $item.Destination) -Force
+            }
+
+            if ($item.ContainsKey('SourcePattern')) {
+              $match = Get-ChildItem -Path $item.SourcePattern -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($null -ne $match) {
+                Copy-Item -Path $match.FullName -Destination (Join-Path $artifactDir $item.Destination) -Force
+              }
+            }
+          }
+
+          Get-ChildItem $artifactDir | Format-Table -AutoSize
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CT_AlienIsolation-binaries
+          path: artifacts
+          if-no-files-found: warn

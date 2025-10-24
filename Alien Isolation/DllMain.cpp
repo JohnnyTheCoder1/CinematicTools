@@ -1,8 +1,12 @@
 #include "Main.h"
+#include "Util/Util.h"
 #include <thread>
 
 DWORD WINAPI RunCT(LPVOID arg)
 {
+  util::log::Init();
+  util::log::Write("CT_AlienIsolation injected. Spawning main loop...");
+
   g_mainHandle = new Main();
   if (g_mainHandle->Initialize())
     g_mainHandle->Run();

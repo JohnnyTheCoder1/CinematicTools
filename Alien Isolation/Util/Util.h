@@ -46,7 +46,7 @@ namespace util
     {
       BYTE* Pattern{ nullptr }; // The pattern to search
       std::string Mask;  // Which bytes should be evaluated (x = evaluate, ? = skip)
-      
+
       bool HasReference{ false }; // Interpret the offset from the assembly reference
       int ReferenceOffset{ 0 }; // How far in the signature is the assembly reference
       int ReferenceSize{ 0 }; // How many bytes is the assembly reference (usually 4, obsolete?)
@@ -59,6 +59,7 @@ namespace util
 
     void Scan();
     int GetOffset(std::string const& name);
+    int GetRelOffset(std::string const& name);
   }
 
   bool GetResource(int, void*&, DWORD&);
@@ -67,6 +68,12 @@ namespace util
   BYTE CharToByte(char c);
 
   BOOL WriteMemory(DWORD_PTR, const void*, DWORD);
+
+  // Memory safety helpers
+  // Returns true if the pointer appears to be readable for at least `bytes` bytes.
+  bool IsPtrReadable(const void* ptr, size_t bytes = 1);
+  // Returns true if [addr, addr+size) lies within the specified module's image range.
+  bool IsAddressInModule(HMODULE hModule, const void* addr, size_t size);
 
   namespace math
   {

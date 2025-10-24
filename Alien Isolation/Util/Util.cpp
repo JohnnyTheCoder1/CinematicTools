@@ -3,6 +3,17 @@
 
 #include <codecvt>
 #include <locale>
+#include <Psapi.h>
+#pragma comment(lib, "Psapi.lib")
+
+namespace {
+  // Helper to check if a memory page has readable protections
+  static bool IsReadableProtection(DWORD prot)
+  {
+    return (prot & PAGE_READONLY) || (prot & PAGE_READWRITE) || (prot & PAGE_WRITECOPY) ||
+           (prot & PAGE_EXECUTE_READ) || (prot & PAGE_EXECUTE_READWRITE) || (prot & PAGE_EXECUTE_WRITECOPY);
+  }
+}
 
 // Loads resource data from the .dll file based on resource IDs in resource.h
 bool util::GetResource(int ID, void* &pData, DWORD& size)
@@ -125,5 +136,36 @@ BOOL util::WriteMemory(DWORD_PTR dwAddress, const void* cpvPatch, DWORD dwSize)
     return false; //Failed to unprotect, so return false..
 
   return VirtualProtect((void*)dwAddress, dwSize, dwProtect, new DWORD); //Reprotect the memory
+}
+
+bool util::IsPtrReadable(const void* ptr, size_t bytes)
+{
+  if (!ptr) return false;
+  MEMORY_BASIC_INFORMATION mbi{ 0 };
+  if (!VirtualQuery(ptr, &mbi, sizeof(mbi)))
+    return false;
+  if (mbi.State != MEM_COMMIT)
+    return false;
+  if (!IsReadableProtection(mbi.Protect))
+    return false;
+  // Ensure the requested size fits in this region
+  const uintptr_t begin = reinterpret_cast<uintptr_t>(ptr);
+  const uintptr_t end = begin + bytes;
+  const uintptr_t regionEnd = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
+  return end <= regionEnd;
+}
+
+bool util::IsAddressInModule(HMODULE hModule, const void* addr, size_t size)
+{
+  if (!hModule || !addr) return false;
+  MODULEINFO info{ 0 };
+  if (!GetModuleInformation(GetCurrentProcess(), hModule, &info, sizeof(info)))
+    return false;
+
+  const uintptr_t base = reinterpret_cast<uintptr_t>(info.lpBaseOfDll);
+  const uintptr_t end = base + info.SizeOfImage;
+  const uintptr_t a = reinterpret_cast<uintptr_t>(addr);
+  const uintptr_t b = a + size;
+  return (a >= base) && (b <= end);
 }
 

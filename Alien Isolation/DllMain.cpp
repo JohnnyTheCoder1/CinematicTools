@@ -7,16 +7,9 @@ DWORD WINAPI RunCT(LPVOID arg)
   util::log::Init();
   util::log::Write("CT_AlienIsolation injected. Spawning main loop...");
 
-  __try
-  {
-    g_mainHandle = new Main();
-    if (g_mainHandle->Initialize())
-      g_mainHandle->Run();
-  }
-  __except (EXCEPTION_EXECUTE_HANDLER)
-  {
-    util::log::Error("Unhandled exception in RunCT thread. Exception code=0x%X", GetExceptionCode());
-  }
+  g_mainHandle = new Main();
+  if (g_mainHandle->Initialize())
+    g_mainHandle->Run();
 
   delete g_mainHandle;
 

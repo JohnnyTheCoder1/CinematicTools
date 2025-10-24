@@ -243,13 +243,17 @@ void util::hooks::Init()
 
   if (g_dxgiSwapChain)
   {
-    __try
+    if (util::IsPtrReadable(g_dxgiSwapChain, sizeof(void*)))
     {
-      CreateVTableHook("SwapChainPresent", (PDWORD*)g_dxgiSwapChain, hIDXGISwapChain_Present, 8, &oIDXGISwapChain_Present);
+      void** vtbl = *(void***)g_dxgiSwapChain;
+      if (util::IsPtrReadable(vtbl, (8 + 1) * sizeof(void*)))
+        CreateVTableHook("SwapChainPresent", (PDWORD*)g_dxgiSwapChain, hIDXGISwapChain_Present, 8, &oIDXGISwapChain_Present);
+      else
+        util::log::Error("SwapChain vtable not readable; skipping Present hook");
     }
-    __except (EXCEPTION_EXECUTE_HANDLER)
+    else
     {
-      util::log::Error("Access violation while creating VTable hook on SwapChain. Skipping Present hook.");
+      util::log::Error("SwapChain pointer not readable; skipping Present hook");
     }
   }
   else

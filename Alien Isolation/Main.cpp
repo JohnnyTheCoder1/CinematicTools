@@ -111,17 +111,13 @@ bool Main::Initialize()
       return false;
     }
 
-    CATHODE::D3D* pD3D = nullptr;
-    __try
+    if (!util::IsPtrReadable((void*)d3dSingletonAddr, sizeof(void*)))
     {
-      pD3D = *(CATHODE::D3D**)d3dSingletonAddr;
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-      util::log::Error("Access violation while reading D3D singleton at 0x%X. Offsets likely outdated.", d3dSingletonAddr);
+      util::log::Error("D3D singleton address not readable: 0x%X", d3dSingletonAddr);
       return false;
     }
 
+    CATHODE::D3D* pD3D = *(CATHODE::D3D**)d3dSingletonAddr;
     if (!util::IsPtrReadable(pD3D, sizeof(void*)))
     {
       util::log::Error("D3D singleton pointer is not readable: 0x%p", pD3D);

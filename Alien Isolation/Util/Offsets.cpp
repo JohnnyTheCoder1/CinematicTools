@@ -201,3 +201,23 @@ int util::offsets::GetOffset(std::string const& name)
   util::log::Error("Offset %s does not exist", name.c_str());
   return 0;
 }
+
+int util::offsets::GetRelOffset(std::string const& name)
+{
+  if (m_UseScannedResults)
+  {
+    auto result = m_Signatures.find(name);
+    if (result != m_Signatures.end())
+    {
+      if (result->second.Result)
+        return result->second.Result - (int)g_gameHandle;
+    }
+  }
+
+  auto hardcodedResult = m_HardcodedOffsets.find(name);
+  if (hardcodedResult != m_HardcodedOffsets.end())
+    return hardcodedResult->second;
+
+  util::log::Error("Relative offset %s does not exist", name.c_str());
+  return 0;
+}

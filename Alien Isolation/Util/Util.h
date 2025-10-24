@@ -46,7 +46,7 @@ namespace util
     {
       BYTE* Pattern{ nullptr }; // The pattern to search
       std::string Mask;  // Which bytes should be evaluated (x = evaluate, ? = skip)
-      
+
       bool HasReference{ false }; // Interpret the offset from the assembly reference
       int ReferenceOffset{ 0 }; // How far in the signature is the assembly reference
       int ReferenceSize{ 0 }; // How many bytes is the assembly reference (usually 4, obsolete?)
@@ -59,6 +59,7 @@ namespace util
 
     void Scan();
     int GetOffset(std::string const& name);
+    int GetRelOffset(std::string const& name);
   }
 
   bool GetResource(int, void*&, DWORD&);

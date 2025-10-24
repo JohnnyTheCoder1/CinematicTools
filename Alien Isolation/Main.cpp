@@ -104,14 +104,17 @@ bool Main::Initialize()
     if (!GetModuleInformation(GetCurrentProcess(), g_gameHandle, &modInfo, sizeof(modInfo)))
       util::log::Warning("GetModuleInformation failed, GetLastError 0x%X", GetLastError());
 
-    int d3dSingletonAddr = util::offsets::GetOffset("OFFSET_D3D");
-    if (!util::IsAddressInModule(g_gameHandle, (void*)d3dSingletonAddr, sizeof(void*)))
+    int d3dSingletonAddr = util::offsets::GetRelOffset("OFFSET_D3D");
+    uintptr_t d3dSingletonAbs = (uintptr_t)g_gameHandle + (uintptr_t)d3dSingletonAddr;
+
+    if (!util::IsAddressInModule(g_gameHandle,
+      reinterpret_cast<void*>(d3dSingletonAbs), sizeof(void*)))
     {
       util::log::Error("OFFSET_D3D (0x%X) is outside module image. Likely version mismatch.", d3dSingletonAddr);
       return false;
     }
 
-    CATHODE::D3D** ppD3D = reinterpret_cast<CATHODE::D3D**>(d3dSingletonAddr);
+    CATHODE::D3D** ppD3D = reinterpret_cast<CATHODE::D3D**>(d3dSingletonAbs);
     CATHODE::D3D* pD3D = nullptr;
 
     const int maxPtrTries = 200; // ~10 seconds total wait

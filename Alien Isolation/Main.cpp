@@ -196,6 +196,9 @@ bool Main::Initialize()
     if (!g_d3d11Device || !g_d3d11Context || !g_dxgiSwapChain)
     {
       util::log::Error("Failed to capture DirectX interfaces via Present hook fallback");
+      util::log::Error("Present hook installed: %s | Device 0x%p | Context 0x%p | SwapChain 0x%p",
+        util::hooks::IsPresentHookInstalled() ? "yes" : "no",
+        g_d3d11Device, g_d3d11Context, g_dxgiSwapChain);
       return false;
     }
 

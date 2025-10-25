@@ -8,6 +8,8 @@
 #include <unordered_map>
 #include <Windows.h>
 
+#pragma comment(lib, "d3d11.lib")
+
 // Function definitions
 typedef HRESULT(__stdcall* tIDXGISwapChain_Present)(IDXGISwapChain*, UINT, UINT);
 typedef BOOL(WINAPI* tSetCursorPos)(int, int);
@@ -33,22 +35,57 @@ tIDXGISwapChain_Present oIDXGISwapChain_Present = nullptr;
 HRESULT __stdcall hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncInterval, UINT Flags)
 {
   static bool loggedDeviceFailure = false;
+  static bool loggedFirstPresent = false;
+  static bool loggedSwapChainCapture = false;
+
+  if (!loggedFirstPresent)
+  {
+    util::log::Write(">>> Present hook CALLED! pSwapchain=0x%p SyncInterval=%u Flags=%u", pSwapchain, SyncInterval, Flags);
+    loggedFirstPresent = true;
+  }
 
   if (!g_dxgiSwapChain)
     g_dxgiSwapChain = pSwapchain;
 
+  if (g_dxgiSwapChain == pSwapchain && !loggedSwapChainCapture)
+  {
+    util::log::Ok("Captured IDXGISwapChain from Present hook (0x%p)", g_dxgiSwapChain);
+    loggedSwapChainCapture = true;
+  }
+
   if (!g_d3d11Device)
   {
-    HRESULT hr = pSwapchain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(&g_d3d11Device));
-    if (FAILED(hr) && !loggedDeviceFailure)
+    ID3D11Device* pDevice = nullptr;
+    HRESULT hr = pSwapchain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(&pDevice));
+    if (FAILED(hr))
     {
-      util::log::Warning("SwapChain::GetDevice failed while capturing interfaces, HRESULT 0x%X", hr);
-      loggedDeviceFailure = true;
+      if (!loggedDeviceFailure)
+      {
+        util::log::Warning("SwapChain::GetDevice failed while capturing interfaces, HRESULT 0x%X", hr);
+        loggedDeviceFailure = true;
+      }
+    }
+    else if (!pDevice)
+    {
+      if (!loggedDeviceFailure)
+      {
+        util::log::Warning("SwapChain::GetDevice succeeded but returned null device pointer");
+        loggedDeviceFailure = true;
+      }
+    }
+    else
+    {
+      g_d3d11Device = pDevice;
+      util::log::Ok("Captured ID3D11Device from Present hook (0x%p)", g_d3d11Device);
     }
   }
 
   if (g_d3d11Device && !g_d3d11Context)
+  {
     g_d3d11Device->GetImmediateContext(&g_d3d11Context);
+    if (g_d3d11Context)
+      util::log::Ok("Captured ID3D11DeviceContext from Present hook (0x%p)", g_d3d11Context);
+  }
 
   if (!g_shutdown && g_mainHandle)
   {
@@ -321,6 +358,8 @@ static bool CreateDXGIPresentHook()
   }
 
   void** vtbl = *reinterpret_cast<void***>(pSwapChain);
+  util::log::Write("SwapChain vtable at 0x%p, Present at slot 8 is 0x%p", vtbl, vtbl[8]);
+  
   bool hookCreated = CreateHook("SwapChainPresent", (int)vtbl[8], hIDXGISwapChain_Present, &oIDXGISwapChain_Present);
 
   pSwapChain->Release();
@@ -332,6 +371,7 @@ static bool CreateDXGIPresentHook()
     return false;
 
   g_presentHookCreated = true;
+  util::log::Ok("Installed DXGI Present hook via dummy device");
   return true;
 }
 
@@ -375,6 +415,11 @@ bool util::hooks::Init()
     return false;
 
   return true;
+}
+
+bool util::hooks::IsPresentHookInstalled()
+{
+  return g_presentHookCreated;
 }
 
 void util::hooks::InstallGameHooks()

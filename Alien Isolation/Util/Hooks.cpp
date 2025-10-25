@@ -38,6 +38,12 @@ HRESULT __stdcall hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncI
   static bool loggedFirstPresent = false;
   static bool loggedSwapChainCapture = false;
 
+  if (!loggedFirstPresent)
+  {
+    util::log::Write(">>> Present hook CALLED! pSwapchain=0x%p SyncInterval=%u Flags=%u", pSwapchain, SyncInterval, Flags);
+    loggedFirstPresent = true;
+  }
+
   if (!g_dxgiSwapChain)
     g_dxgiSwapChain = pSwapchain;
 
@@ -79,12 +85,6 @@ HRESULT __stdcall hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncI
     g_d3d11Device->GetImmediateContext(&g_d3d11Context);
     if (g_d3d11Context)
       util::log::Ok("Captured ID3D11DeviceContext from Present hook (0x%p)", g_d3d11Context);
-  }
-
-  if (!loggedFirstPresent)
-  {
-    util::log::Write("Present hook triggered; capturing DirectX interfaces");
-    loggedFirstPresent = true;
   }
 
   if (!g_shutdown && g_mainHandle)
@@ -358,6 +358,8 @@ static bool CreateDXGIPresentHook()
   }
 
   void** vtbl = *reinterpret_cast<void***>(pSwapChain);
+  util::log::Write("SwapChain vtable at 0x%p, Present at slot 8 is 0x%p", vtbl, vtbl[8]);
+  
   bool hookCreated = CreateHook("SwapChainPresent", (int)vtbl[8], hIDXGISwapChain_Present, &oIDXGISwapChain_Present);
 
   pSwapChain->Release();

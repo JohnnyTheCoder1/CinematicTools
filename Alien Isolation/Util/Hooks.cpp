@@ -36,22 +36,50 @@ HRESULT __stdcall hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncI
 {
   static bool loggedDeviceFailure = false;
   static bool loggedFirstPresent = false;
+  static bool loggedSwapChainCapture = false;
 
   if (!g_dxgiSwapChain)
     g_dxgiSwapChain = pSwapchain;
 
+  if (g_dxgiSwapChain == pSwapchain && !loggedSwapChainCapture)
+  {
+    util::log::Ok("Captured IDXGISwapChain from Present hook (0x%p)", g_dxgiSwapChain);
+    loggedSwapChainCapture = true;
+  }
+
   if (!g_d3d11Device)
   {
-    HRESULT hr = pSwapchain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(&g_d3d11Device));
-    if (FAILED(hr) && !loggedDeviceFailure)
+    ID3D11Device* pDevice = nullptr;
+    HRESULT hr = pSwapchain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(&pDevice));
+    if (FAILED(hr))
     {
-      util::log::Warning("SwapChain::GetDevice failed while capturing interfaces, HRESULT 0x%X", hr);
-      loggedDeviceFailure = true;
+      if (!loggedDeviceFailure)
+      {
+        util::log::Warning("SwapChain::GetDevice failed while capturing interfaces, HRESULT 0x%X", hr);
+        loggedDeviceFailure = true;
+      }
+    }
+    else if (!pDevice)
+    {
+      if (!loggedDeviceFailure)
+      {
+        util::log::Warning("SwapChain::GetDevice succeeded but returned null device pointer");
+        loggedDeviceFailure = true;
+      }
+    }
+    else
+    {
+      g_d3d11Device = pDevice;
+      util::log::Ok("Captured ID3D11Device from Present hook (0x%p)", g_d3d11Device);
     }
   }
 
   if (g_d3d11Device && !g_d3d11Context)
+  {
     g_d3d11Device->GetImmediateContext(&g_d3d11Context);
+    if (g_d3d11Context)
+      util::log::Ok("Captured ID3D11DeviceContext from Present hook (0x%p)", g_d3d11Context);
+  }
 
   if (!loggedFirstPresent)
   {

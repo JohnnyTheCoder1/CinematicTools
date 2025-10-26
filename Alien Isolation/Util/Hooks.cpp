@@ -4,6 +4,7 @@
 #include "../AlienIsolation.h"
 #include <MinHook.h>
 #include <d3d11.h>
+#include <dxgi1_2.h>
 #include <DirectXMath.h>
 #include <unordered_map>
 #include <Windows.h>
@@ -12,6 +13,7 @@
 
 // Function definitions
 typedef HRESULT(__stdcall* tIDXGISwapChain_Present)(IDXGISwapChain*, UINT, UINT);
+typedef HRESULT(__stdcall* tIDXGISwapChain1_Present1)(IDXGISwapChain1*, UINT, UINT, const DXGI_PRESENT_PARAMETERS*);
 typedef BOOL(WINAPI* tSetCursorPos)(int, int);
 
 typedef int(__thiscall* tCameraUpdate)(CATHODE::AICameraManager*);
@@ -31,78 +33,92 @@ typedef bool(__thiscall* tCombatManagerUpdate)(void*, CATHODE::Character*);
 // on top, like the tools UI.
 
 tIDXGISwapChain_Present oIDXGISwapChain_Present = nullptr;
+tIDXGISwapChain1_Present1 oIDXGISwapChain1_Present1 = nullptr;
+
+namespace
+{
+  void HandlePresent(IDXGISwapChain* pSwapchain, UINT SyncInterval, UINT Flags)
+  {
+    static bool loggedDeviceFailure = false;
+    static bool loggedFirstPresent = false;
+    static bool loggedSwapChainCapture = false;
+
+    if (!loggedFirstPresent)
+    {
+      util::log::Write(">>> Present hook CALLED! pSwapchain=0x%p SyncInterval=%u Flags=%u", pSwapchain, SyncInterval, Flags);
+      loggedFirstPresent = true;
+    }
+
+    if (!g_dxgiSwapChain)
+      g_dxgiSwapChain = pSwapchain;
+
+    if (g_dxgiSwapChain == pSwapchain && !loggedSwapChainCapture)
+    {
+      util::log::Ok("Captured IDXGISwapChain from Present hook (0x%p)", g_dxgiSwapChain);
+      loggedSwapChainCapture = true;
+    }
+
+    if (!g_d3d11Device)
+    {
+      ID3D11Device* pDevice = nullptr;
+      HRESULT hr = pSwapchain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(&pDevice));
+      if (FAILED(hr))
+      {
+        if (!loggedDeviceFailure)
+        {
+          util::log::Warning("SwapChain::GetDevice failed while capturing interfaces, HRESULT 0x%X", hr);
+          loggedDeviceFailure = true;
+        }
+      }
+      else if (!pDevice)
+      {
+        if (!loggedDeviceFailure)
+        {
+          util::log::Warning("SwapChain::GetDevice succeeded but returned null device pointer");
+          loggedDeviceFailure = true;
+        }
+      }
+      else
+      {
+        g_d3d11Device = pDevice;
+        util::log::Ok("Captured ID3D11Device from Present hook (0x%p)", g_d3d11Device);
+      }
+    }
+
+    if (g_d3d11Device && !g_d3d11Context)
+    {
+      g_d3d11Device->GetImmediateContext(&g_d3d11Context);
+      if (g_d3d11Context)
+        util::log::Ok("Captured ID3D11DeviceContext from Present hook (0x%p)", g_d3d11Context);
+    }
+
+    if (!g_shutdown && g_mainHandle)
+    {
+      CTRenderer* pRenderer = g_mainHandle->GetRenderer();
+      UI* pUI = g_mainHandle->GetUI();
+      CameraManager* pCameraManager = g_mainHandle->GetCameraManager();
+
+      if (pRenderer && pRenderer->IsReady() && pUI && pUI->IsReady() && pCameraManager)
+      {
+        pUI->BindRenderTarget();
+        pRenderer->UpdateMatrices();
+        //g_mainHandle->GetCameraManager()->DrawTrack();
+        pUI->Draw();
+      }
+    }
+  }
+}
 
 HRESULT __stdcall hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncInterval, UINT Flags)
 {
-  static bool loggedDeviceFailure = false;
-  static bool loggedFirstPresent = false;
-  static bool loggedSwapChainCapture = false;
-
-  if (!loggedFirstPresent)
-  {
-    util::log::Write(">>> Present hook CALLED! pSwapchain=0x%p SyncInterval=%u Flags=%u", pSwapchain, SyncInterval, Flags);
-    loggedFirstPresent = true;
-  }
-
-  if (!g_dxgiSwapChain)
-    g_dxgiSwapChain = pSwapchain;
-
-  if (g_dxgiSwapChain == pSwapchain && !loggedSwapChainCapture)
-  {
-    util::log::Ok("Captured IDXGISwapChain from Present hook (0x%p)", g_dxgiSwapChain);
-    loggedSwapChainCapture = true;
-  }
-
-  if (!g_d3d11Device)
-  {
-    ID3D11Device* pDevice = nullptr;
-    HRESULT hr = pSwapchain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(&pDevice));
-    if (FAILED(hr))
-    {
-      if (!loggedDeviceFailure)
-      {
-        util::log::Warning("SwapChain::GetDevice failed while capturing interfaces, HRESULT 0x%X", hr);
-        loggedDeviceFailure = true;
-      }
-    }
-    else if (!pDevice)
-    {
-      if (!loggedDeviceFailure)
-      {
-        util::log::Warning("SwapChain::GetDevice succeeded but returned null device pointer");
-        loggedDeviceFailure = true;
-      }
-    }
-    else
-    {
-      g_d3d11Device = pDevice;
-      util::log::Ok("Captured ID3D11Device from Present hook (0x%p)", g_d3d11Device);
-    }
-  }
-
-  if (g_d3d11Device && !g_d3d11Context)
-  {
-    g_d3d11Device->GetImmediateContext(&g_d3d11Context);
-    if (g_d3d11Context)
-      util::log::Ok("Captured ID3D11DeviceContext from Present hook (0x%p)", g_d3d11Context);
-  }
-
-  if (!g_shutdown && g_mainHandle)
-  {
-    CTRenderer* pRenderer = g_mainHandle->GetRenderer();
-    UI* pUI = g_mainHandle->GetUI();
-    CameraManager* pCameraManager = g_mainHandle->GetCameraManager();
-
-    if (pRenderer && pRenderer->IsReady() && pUI && pUI->IsReady() && pCameraManager)
-    {
-      pUI->BindRenderTarget();
-      pRenderer->UpdateMatrices();
-      //g_mainHandle->GetCameraManager()->DrawTrack();
-      pUI->Draw();
-    }
-  }
-
+  HandlePresent(pSwapchain, SyncInterval, Flags);
   return oIDXGISwapChain_Present(pSwapchain, SyncInterval, Flags);
+}
+
+HRESULT __stdcall hIDXGISwapChain1_Present1(IDXGISwapChain1* pSwapchain, UINT SyncInterval, UINT Flags, const DXGI_PRESENT_PARAMETERS* pPresentParameters)
+{
+  HandlePresent(pSwapchain, SyncInterval, Flags);
+  return oIDXGISwapChain1_Present1(pSwapchain, SyncInterval, Flags, pPresentParameters);
 }
 
 //////////////////////////
@@ -361,6 +377,24 @@ static bool CreateDXGIPresentHook()
   util::log::Write("SwapChain vtable at 0x%p, Present at slot 8 is 0x%p", vtbl, vtbl[8]);
   
   bool hookCreated = CreateHook("SwapChainPresent", (int)vtbl[8], hIDXGISwapChain_Present, &oIDXGISwapChain_Present);
+
+  if (hookCreated)
+  {
+    IDXGISwapChain1* pSwapChain1 = nullptr;
+    HRESULT qiHr = pSwapChain->QueryInterface(__uuidof(IDXGISwapChain1), reinterpret_cast<void**>(&pSwapChain1));
+    if (SUCCEEDED(qiHr) && pSwapChain1)
+    {
+      void** vtbl1 = *reinterpret_cast<void***>(pSwapChain1);
+      util::log::Write("SwapChain1 vtable at 0x%p, Present1 at slot 22 is 0x%p", vtbl1, vtbl1[22]);
+      if (CreateHook("SwapChainPresent1", (int)vtbl1[22], hIDXGISwapChain1_Present1, &oIDXGISwapChain1_Present1))
+        util::log::Ok("Installed DXGI Present1 hook via dummy device");
+      pSwapChain1->Release();
+    }
+    else
+    {
+      util::log::Warning("IDXGISwapChain1 interface unavailable for Present1 hook, HRESULT 0x%X", qiHr);
+    }
+  }
 
   pSwapChain->Release();
   pDevice->Release();

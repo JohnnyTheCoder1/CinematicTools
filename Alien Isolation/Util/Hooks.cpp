@@ -368,6 +368,12 @@ static bool CreateDXGIPresentHook()
 
   if (FAILED(hr))
   {
+    hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_REFERENCE, nullptr, createFlags,
+      featureLevels, _countof(featureLevels), D3D11_SDK_VERSION, &desc, &pSwapChain, &pDevice, &obtainedLevel, &pContext);
+  }
+
+  if (FAILED(hr))
+  {
     util::log::Error("Failed to create dummy D3D11 device for Present hook, HRESULT 0x%X", hr);
     DestroyDummyWindow(hwnd);
     return false;

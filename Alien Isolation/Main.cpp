@@ -230,7 +230,7 @@ bool Main::Initialize()
 
   // Retrieve game version and make a const variable for whatever version
   // the tools support. If versions mismatch, scan for offsets.
-  // util::offsets::Scan();
+  util::offsets::Scan();
 
   m_pRenderer = std::make_unique<CTRenderer>();
   if (!m_pRenderer->Initialize())

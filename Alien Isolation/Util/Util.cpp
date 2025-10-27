@@ -169,3 +169,10 @@ bool util::IsAddressInModule(HMODULE hModule, const void* addr, size_t size)
   return (a >= base) && (b <= end);
 }
 
+bool util::IsSteamBuild()
+{
+  // simplest heuristic: Steam client dll present OR steam_api loaded by the game
+  return GetModuleHandleA("steam_api.dll") != nullptr
+      || GetModuleHandleA("steamclient.dll") != nullptr;
+}
+

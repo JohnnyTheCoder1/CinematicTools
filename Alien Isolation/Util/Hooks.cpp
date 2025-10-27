@@ -200,10 +200,17 @@ tTonemapUpdate oTonemapUpdate = nullptr;
 int __fastcall hPostProcessUpdate(int _this)
 {
   int result = oPostProcessUpdate(_this);
-
-  CATHODE::PostProcess* pPostProcess = reinterpret_cast<CATHODE::PostProcess*>(_this + 0x1918);
-  g_mainHandle->GetCameraManager()->OnPostProcessUpdate(pPostProcess);
-  g_mainHandle->GetVisualsController()->OnPostProcessUpdate(pPostProcess);
+  __try {
+    auto* pPostProcess = reinterpret_cast<CATHODE::PostProcess*>(_this + 0x1918);
+    if (util::IsPtrReadable(pPostProcess, sizeof(void*)))
+    {
+      g_mainHandle->GetCameraManager()->OnPostProcessUpdate(pPostProcess);
+      g_mainHandle->GetVisualsController()->OnPostProcessUpdate(pPostProcess);
+    }
+  } __except(EXCEPTION_EXECUTE_HANDLER) {
+    // skip on bad offset
+    util::log::Warning("Exception in hPostProcessUpdate, likely bad offset for PostProcess struct. Skipping update.");
+  }
   return result;
 }
 
@@ -471,6 +478,8 @@ void util::hooks::InstallGameHooks()
   if (!EnsureMinHookInitialized())
     return;
 
+  const bool isSteamBuild = util::IsSteamBuild();
+
   auto safeCreate = [](const char* name, const char* key, auto hook, auto original)
   {
     int addr = util::offsets::GetOffset(key);
@@ -478,6 +487,14 @@ void util::hooks::InstallGameHooks()
     {
       util::log::Warning("Skipping hook %s: address 0x%X outside module image", name, addr);
       return;
+    }
+
+    // Sanity check executable memory
+    MEMORY_BASIC_INFORMATION mbi{};
+    if (VirtualQuery((LPCVOID)addr, &mbi, sizeof(mbi)) && !(mbi.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE)))
+    {
+        util::log::Warning("Skipping hook %s: target 0x%X not in executable memory", name, addr);
+        return;
     }
 
     BYTE preview[6] = { 0 };
@@ -494,12 +511,20 @@ void util::hooks::InstallGameHooks()
     CreateHook(name, addr, hook, original);
   };
 
-  safeCreate("CameraUpdate", "OFFSET_CAMERAUPDATE", hCameraUpdate, &oCameraUpdate);
-  //safeCreate("InputUpdate", "OFFSET_INPUTUPDATE", hInputUpdate, &oInputUpdate);
-  safeCreate("GamepadUpdate", "OFFSET_GAMEPADUPDATE", hGamepadUpdate, &oGamepadUpdate);
-  safeCreate("PostProcessUpdate", "OFFSET_POSTPROCESSUPDATE", hPostProcessUpdate, &oPostProcessUpdate);
-  safeCreate("TonemapUpdate", "OFFSET_TONEMAPUPDATE", hTonemapSettings, &oTonemapUpdate);
-  //CreateHook("AICombatManagerUpdate", util::offsets::GetOffset("OFFSET_COMBATMANAGERUPDATE"), hCombatManagerUpdate, &oCombatManagerUpdate);
+  if (isSteamBuild)
+  {
+    util::log::Write("Steam build detected, installing all gameplay hooks...");
+    safeCreate("CameraUpdate", "OFFSET_CAMERAUPDATE", hCameraUpdate, &oCameraUpdate);
+    //safeCreate("InputUpdate", "OFFSET_INPUTUPDATE", hInputUpdate, &oInputUpdate);
+    safeCreate("GamepadUpdate", "OFFSET_GAMEPADUPDATE", hGamepadUpdate, &oGamepadUpdate);
+    safeCreate("PostProcessUpdate", "OFFSET_POSTPROCESSUPDATE", hPostProcessUpdate, &oPostProcessUpdate);
+    safeCreate("TonemapUpdate", "OFFSET_TONEMAPUPDATE", hTonemapSettings, &oTonemapUpdate);
+    //CreateHook("AICombatManagerUpdate", util::offsets::GetOffset("OFFSET_COMBATMANAGERUPDATE"), hCombatManagerUpdate, &oCombatManagerUpdate);
+  }
+  else
+  {
+    util::log::Warning("Non-Steam build detected - skipping cinematic/gameplay hooks to avoid crashes. Overlay/UI only.");
+  }
 
   FARPROC setCursorProc = GetProcAddress(GetModuleHandleA("user32.dll"), "SetCursorPos");
   if (setCursorProc)

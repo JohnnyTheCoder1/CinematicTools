@@ -76,6 +76,8 @@ namespace util
   bool IsPtrReadable(const void* ptr, size_t bytes = 1);
   // Returns true if [addr, addr+size) lies within the specified module's image range.
   bool IsAddressInModule(HMODULE hModule, const void* addr, size_t size);
+  // Returns true if the game appears to be a Steam build.
+  bool IsSteamBuild();
 
   namespace math
   {

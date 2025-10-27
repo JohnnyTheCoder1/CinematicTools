@@ -33,88 +33,100 @@ namespace
   ("OFFSET_FREEZETIME", 0x12F194C)
   ("OFFSET_SCALEFORM", 0x134A78C)
   ("OFFSET_TIMESCALE", 0xDC6EA0)
+  std::unordered_map<std::string, int> m_HardcodedOffsets = map_list_of
+  ("OFFSET_D3D", 0x17DF5CC)
+  ("OFFSET_MAIN", 0x12F0C88)
+
+  ("OFFSET_CAMERAUPDATE", 0x32300)
+  ("OFFSET_GETCAMERAMATRIX", 0x5B0B40)
+  ("OFFSET_POSTPROCESSUPDATE", 0x608C50)
+  ("OFFSET_TONEMAPUPDATE", 0x208490)
+
+  ("OFFSET_INPUTUPDATE", 0x57D6C0)
+  ("OFFSET_GAMEPADUPDATE", 0x60EE30)
+  ("OFFSET_COMBATMANAGERUPDATE", 0x37A800)
+
+  ("OFFSET_SHOWMOUSE", 0x1359B44)
+  ("OFFSET_DRAWUI", 0x1240F27)
+  ("OFFSET_FREEZETIME", 0x12F194C)
+  ("OFFSET_SCALEFORM", 0x134A78C)
+  ("OFFSET_TIMESCALE", 0xDC6EA0)
   ("OFFSET_POSTPROCESS", 0x15D0970);
 
-  bool DataCompare(BYTE* pData, BYTE* bSig, const char* szMask)
-  {
-    for (; *szMask; ++szMask, ++pData, ++bSig)
-    {
-      if (*szMask == 'x' && *pData != *bSig)
-        return false;
+  struct CompiledSig {
+    std::vector<BYTE> bytes;   // compact: only actual bytes (no spaces)
+    std::string       mask;    // same length as bytes, 'x' or '?'
+    int refStart = -1;         // index in bytes where [ ... ] begins (first '?')
+    int refSize  = 0;          // number of bytes inside brackets
+    int add      = 0;          // AddOffset
+  };
+
+  static CompiledSig Compile(std::string const& sig, int addOffset) {
+    CompiledSig out; out.add = addOffset;
+    bool inRef = false;
+    for (size_t i = 0; i < sig.size();) {
+      char c = sig[i];
+      if (c == ' ') { ++i; continue; }
+      if (c == '[') { inRef = true; ++i; continue; }
+      if (c == ']') { inRef = false; ++i; continue; }
+
+      if (c == '?') {
+        // accept "?" or "??"
+        if (i + 1 < sig.size() && sig[i+1] == '?') ++i;
+        out.bytes.push_back(0x00);
+        out.mask.push_back('?');
+        if (inRef) {
+          if (out.refStart < 0) out.refStart = (int)out.bytes.size() - 1;
+          out.refSize++;
+        }
+        ++i;
+      } else {
+        // read two hex chars -> one byte
+        auto hex = [](char h)->int {
+          if (h >= '0' && h <= '9') return h - '0';
+          if (h >= 'A' && h <= 'F') return 10 + (h - 'A');
+          if (h >= 'a' && h <= 'f') return 10 + (h - 'a');
+          return -1;
+        };
+        if (i + 1 >= sig.size()) throw std::runtime_error("Odd hex length");
+        int hi = hex(sig[i]), lo = hex(sig[i+1]);
+        if (hi < 0 || lo < 0)   throw std::runtime_error("Bad hex in signature");
+        out.bytes.push_back((BYTE)((hi << 4) | lo));
+        out.mask.push_back('x');
+        i += 2;
+      }
     }
-    return (*szMask) == 0;
+    return out;
   }
 
-  BYTE* FindPattern(BYTE* dwAddress, __int64 dwSize, BYTE* pbSig, const char* szMask)
-  {
-    register BYTE bFirstByte = *(BYTE*)pbSig;
-
-    __int64 length = (__int64)dwAddress + dwSize - strlen(szMask);
-
-    for (register __int64 i = (__int64)dwAddress; i < length; i += 4) // might run faster with 8 bytes but I am too lazy
-    {
-      unsigned x = *(unsigned*)(i);
-
-      if ((x & 0xFF) == bFirstByte)
-        if (DataCompare(reinterpret_cast<BYTE*>(i), pbSig, szMask))
-          return reinterpret_cast<BYTE*>(i);
-
-      if ((x & 0xFF00) >> 8 == bFirstByte)
-        if (DataCompare(reinterpret_cast<BYTE*>(i + 1), pbSig, szMask))
-          return reinterpret_cast<BYTE*>(i + 1);
-
-      if ((x & 0xFF0000) >> 16 == bFirstByte)
-        if (DataCompare(reinterpret_cast<BYTE*>(i + 2), pbSig, szMask))
-          return reinterpret_cast<BYTE*>(i + 2);
-
-      if ((x & 0xFF000000) >> 24 == bFirstByte)
-        if (DataCompare(reinterpret_cast<BYTE*>(i + 3), pbSig, szMask))
-          return reinterpret_cast<BYTE*>(i + 3);
+  static BYTE* FindPattern(BYTE* base, size_t size, CompiledSig const& s) {
+    size_t n = s.bytes.size();
+    if (n == 0 || n > size) return nullptr;
+    BYTE* end = base + (size - n);
+    for (BYTE* p = base; p <= end; ++p) {
+      size_t j = 0;
+      for (; j < n; ++j) {
+        if (s.mask[j] == 'x' && p[j] != s.bytes[j]) break;
+      }
+      if (j == n) return p;
     }
-    return 0;
+    return nullptr;
   }
 }
 
 util::offsets::Signature::Signature(std::string const& sig, int offset /* = 0 */)
 {
-  Pattern = new BYTE[sig.size()]();
+  // store compiled form in Pattern/Mask using an internal encoding
+  // simplest: stash pointer to CompiledSig via Pattern
+  // but easier: repurpose fields
   AddOffset = offset;
-
-  for (size_t i = 0; i < sig.size(); ++i)
-  {
-    switch (sig[i])
-    {
-      case ' ':
-      {
-        break;
-      }
-      case '[':
-      {
-        HasReference = true;
-        ReferenceOffset = i;
-        break;
-      }
-      case ']':
-      {
-        ReferenceSize = i - ReferenceOffset;
-        break;
-      }
-      case '?':
-      {
-        Mask += '?';
-        // In signature it's clearer to mark one wildcard byte as ??
-        // so skip the next character.
-        i += 1;
-      }
-      default:
-      {
-        Mask += 'x';
-        // Process 2 characters into a single byte
-        Pattern[i] = (util::CharToByte(sig[i]) << 4) + util::CharToByte(sig[i+1]);
-        i += 1;
-      }
-    }
-  }
+  // abuse Pattern to store pointer to CompiledSig we allocate
+  auto* cs = new CompiledSig(Compile(sig, offset));
+  Pattern = reinterpret_cast<BYTE*>(cs);
+  Mask.clear(); // unused
+  HasReference = (cs->refStart >= 0);
+  ReferenceOffset = cs->refStart;
+  ReferenceSize   = cs->refSize;
 }
 
 void util::offsets::Scan()
@@ -144,26 +156,25 @@ void util::offsets::Scan()
 
   bool allFound = true;
 
-  for (auto& entry : m_Signatures)
+  for (auto& kv : m_Signatures)
   {
-    Signature& sig = entry.second;
-    int result = reinterpret_cast<int>(FindPattern((BYTE*)info.lpBaseOfDll, info.SizeOfImage, sig.Pattern, sig.Mask.c_str()));
-    if (!result)
-    {
-      util::log::Error("Could not find pattern for %s", entry.first.c_str());
+    auto& sig = kv.second;
+    auto* cs = reinterpret_cast<CompiledSig*>(sig.Pattern);
+    BYTE* p = FindPattern((BYTE*)info.lpBaseOfDll, info.SizeOfImage, *cs);
+    if (!p) {
+      util::log::Error("Could not find pattern for %s", kv.first.c_str());
       allFound = false;
+      continue;
     }
-
-    if (sig.HasReference)
-    {
-      // Get the assembly reference
-      int* pReference = (int*)(result + sig.ReferenceOffset);
-      // Assembly reference is relative to the address after the reference
-      sig.Result = ((int)pReference + sig.ReferenceSize) + *pReference;
-      sig.Result += sig.AddOffset;
+    if (sig.HasReference && cs->refSize == 4) {
+      // 32-bit RIP-relative style: ref is a 32-bit displacement from end of ref
+      BYTE* ref = p + cs->refStart;
+      int disp = *reinterpret_cast<int*>(ref);
+      BYTE* abs = (ref + 4) + disp;
+      sig.Result = reinterpret_cast<int>(abs) + cs->add;
+    } else {
+      sig.Result = reinterpret_cast<int>(p) + cs->add;
     }
-    else
-      sig.Result = result + sig.AddOffset;
   }
 
   if (allFound)

@@ -8,14 +8,17 @@
 #include <stdexcept>
 #include <Psapi.h>
 
-namespace util::offsets
+namespace util
 {
-  struct CompiledSig {
-    std::vector<BYTE> bytes;   // compact: only actual bytes (no spaces)
-    std::string       mask;    // same length as bytes, 'x' or '?'
-    int refStart = -1;         // index in bytes where [ ... ] begins (first '?')
-    int refSize  = 0;          // number of bytes inside brackets
-  };
+  namespace offsets
+  {
+    struct CompiledSig {
+      std::vector<BYTE> bytes;   // compact: only actual bytes (no spaces)
+      std::string       mask;    // same length as bytes, 'x' or '?'
+      int refStart = -1;         // index in bytes where [ ... ] begins (first '?')
+      int refSize  = 0;          // number of bytes inside brackets
+    };
+  }
 }
 
 namespace

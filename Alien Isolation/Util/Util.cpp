@@ -122,9 +122,13 @@ std::string util::KeyLparamToString(LPARAM lparam)
 
 BYTE util::CharToByte(char c)
 {
-  BYTE b;
-  sscanf_s(&c, "%hhx", &b);
-  return b;
+  if (c >= '0' && c <= '9')
+    return static_cast<BYTE>(c - '0');
+  if (c >= 'A' && c <= 'F')
+    return static_cast<BYTE>(10 + (c - 'A'));
+  if (c >= 'a' && c <= 'f')
+    return static_cast<BYTE>(10 + (c - 'a'));
+  return 0;
 }
 
 BOOL util::WriteMemory(DWORD_PTR dwAddress, const void* cpvPatch, DWORD dwSize)

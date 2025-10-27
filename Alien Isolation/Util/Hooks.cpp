@@ -113,13 +113,13 @@ namespace
 HRESULT __stdcall hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncInterval, UINT Flags)
 {
   HandlePresent(pSwapchain, SyncInterval, Flags);
-  return oIDXGISwapChain_Present(pSwapchain, SyncInterval, Flags);
+  return oIDXGISwapChain_Present ? oIDXGISwapChain_Present(pSwapchain, SyncInterval, Flags) : S_OK;
 }
 
 HRESULT __stdcall hIDXGISwapChain1_Present1(IDXGISwapChain1* pSwapchain, UINT SyncInterval, UINT Flags, const DXGI_PRESENT_PARAMETERS* pPresentParameters)
 {
   HandlePresent(pSwapchain, SyncInterval, Flags);
-  return oIDXGISwapChain1_Present1(pSwapchain, SyncInterval, Flags, pPresentParameters);
+  return oIDXGISwapChain1_Present1 ? oIDXGISwapChain1_Present1(pSwapchain, SyncInterval, Flags, pPresentParameters) : S_OK;
 }
 
 //////////////////////////
@@ -134,7 +134,7 @@ HRESULT __stdcall hIDXGISwapChain1_Present1(IDXGISwapChain1* pSwapchain, UINT Sy
 
 tCameraUpdate oCameraUpdate = nullptr;
 
-int __fastcall hCameraUpdate(CATHODE::AICameraManager* pCameraManager)
+int __fastcall hCameraUpdate(CATHODE::AICameraManager* pCameraManager, void* /*edx*/)
 {
   g_mainHandle->GetCameraManager()->OnCameraUpdateBegin();
   int result = oCameraUpdate ? oCameraUpdate(pCameraManager) : 0;
@@ -151,7 +151,7 @@ tInputUpdate oInputUpdate = nullptr;
 tGamepadUpdate oGamepadUpdate = nullptr;
 tSetCursorPos oSetCursorPos = nullptr;
 
-int __fastcall hInputUpdate(void* _this)
+int __fastcall hInputUpdate(void* _this, void* /*edx*/)
 {
   CameraManager* pCameraManager = g_mainHandle->GetCameraManager();
   if (pCameraManager->IsCameraEnabled() && pCameraManager->IsKbmDisabled())
@@ -160,7 +160,7 @@ int __fastcall hInputUpdate(void* _this)
   return oInputUpdate ? oInputUpdate(_this) : 0;
 }
 
-int __fastcall hGamepadUpdate(void* _this)
+int __fastcall hGamepadUpdate(void* _this, void* /*edx*/)
 {
   CameraManager* pCameraManager = g_mainHandle->GetCameraManager();
   InputSystem* pInputSystem = g_mainHandle->GetInputSystem();
@@ -197,7 +197,7 @@ tPostProcessUpdate oPostProcessUpdate = nullptr;
 tCombatManagerUpdate oCombatManagerUpdate = nullptr;
 tTonemapUpdate oTonemapUpdate = nullptr;
 
-int __fastcall hPostProcessUpdate(int _this)
+int __fastcall hPostProcessUpdate(int _this, void* /*edx*/)
 {
   int result = oPostProcessUpdate ? oPostProcessUpdate(_this) : 0;
   __try {

@@ -269,7 +269,7 @@ void util::offsets::Scan()
   else
     util::log::Warning("All offsets could not be found, this might result in a crash");
 
-  m_UseScannedResults = foundAny;
+  m_UseScannedResults = (allFound && foundAny);
 }
 
 int util::offsets::GetOffset(std::string const& name)

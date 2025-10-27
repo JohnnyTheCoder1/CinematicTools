@@ -129,13 +129,14 @@ BYTE util::CharToByte(char c)
 
 BOOL util::WriteMemory(DWORD_PTR dwAddress, const void* cpvPatch, DWORD dwSize)
 {
-  DWORD dwProtect;
-  if (VirtualProtect((void*)dwAddress, dwSize, PAGE_READWRITE, &dwProtect)) //Unprotect the memory
-    memcpy((void*)dwAddress, cpvPatch, dwSize); //Write our patch
-  else
-    return false; //Failed to unprotect, so return false..
+  DWORD oldProtect = 0;
+  if (!VirtualProtect(reinterpret_cast<LPVOID>(dwAddress), dwSize, PAGE_READWRITE, &oldProtect))
+    return FALSE;
 
-  return VirtualProtect((void*)dwAddress, dwSize, dwProtect, new DWORD); //Reprotect the memory
+  memcpy(reinterpret_cast<void*>(dwAddress), cpvPatch, dwSize);
+
+  DWORD unused = 0;
+  return VirtualProtect(reinterpret_cast<LPVOID>(dwAddress), dwSize, oldProtect, &unused);
 }
 
 bool util::IsPtrReadable(const void* ptr, size_t bytes)

@@ -137,7 +137,7 @@ tCameraUpdate oCameraUpdate = nullptr;
 int __fastcall hCameraUpdate(CATHODE::AICameraManager* pCameraManager)
 {
   g_mainHandle->GetCameraManager()->OnCameraUpdateBegin();
-  int result = oCameraUpdate(pCameraManager);
+  int result = oCameraUpdate ? oCameraUpdate(pCameraManager) : 0;
   g_mainHandle->GetCameraManager()->OnCameraUpdateEnd();
   return result;
 }
@@ -157,7 +157,7 @@ int __fastcall hInputUpdate(void* _this)
   if (pCameraManager->IsCameraEnabled() && pCameraManager->IsKbmDisabled())
     return 0;
 
-  return oInputUpdate(_this);
+  return oInputUpdate ? oInputUpdate(_this) : 0;
 }
 
 int __fastcall hGamepadUpdate(void* _this)
@@ -170,7 +170,7 @@ int __fastcall hGamepadUpdate(void* _this)
     && !pInputSystem->IsUsingSecondPad())
     return 0;
   
-  return oGamepadUpdate(_this);
+  return oGamepadUpdate ? oGamepadUpdate(_this) : 0;
 }
 
 BOOL WINAPI hSetCursorPos(int x, int y)
@@ -179,7 +179,7 @@ BOOL WINAPI hSetCursorPos(int x, int y)
   if (pUI && pUI->IsEnabled())
     return TRUE;
 
-  return oSetCursorPos(x, y);
+  return oSetCursorPos ? oSetCursorPos(x, y) : TRUE;
 }
 
 
@@ -199,7 +199,7 @@ tTonemapUpdate oTonemapUpdate = nullptr;
 
 int __fastcall hPostProcessUpdate(int _this)
 {
-  int result = oPostProcessUpdate(_this);
+  int result = oPostProcessUpdate ? oPostProcessUpdate(_this) : 0;
   __try {
     auto* pPostProcess = reinterpret_cast<CATHODE::PostProcess*>(_this + 0x1918);
     if (util::IsPtrReadable(pPostProcess, sizeof(void*)))
@@ -223,12 +223,12 @@ bool __fastcall hCombatManagerUpdate(void* _this, void* _EDX, CATHODE::Character
       return false;
   }
 
-  return oCombatManagerUpdate(_this, pTargetChr);
+  return oCombatManagerUpdate ? oCombatManagerUpdate(_this, pTargetChr) : false;
 }
 
 char __stdcall hTonemapSettings(CATHODE::DayToneMapSettings* pTonemapSettings, int a2)
 {
-  char result = oTonemapUpdate(pTonemapSettings, a2);
+  char result = oTonemapUpdate ? oTonemapUpdate(pTonemapSettings, a2) : 0;
   g_mainHandle->GetVisualsController()->OnTonemapUpdate();
 
   return result;

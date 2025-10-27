@@ -3,6 +3,8 @@
 #include <DirectXMath.h>
 #include <string>
 #include <vector>
+#include <memory>
+#include <cstdint>
 #include <Windows.h>
 
 namespace util
@@ -26,6 +28,7 @@ namespace util
 
     bool Init();
     void InstallGameHooks();
+  bool IsPresentHookInstalled();
 
     // if name is empty, then perform on all hooks
     void SetHookState(bool enabled, std::string const& name = "");
@@ -43,17 +46,15 @@ namespace util
 
   namespace offsets
   {
+    struct CompiledSig;
+
     struct Signature
     {
-      BYTE* Pattern{ nullptr }; // The pattern to search
-      std::string Mask;  // Which bytes should be evaluated (x = evaluate, ? = skip)
-
-      bool HasReference{ false }; // Interpret the offset from the assembly reference
-      int ReferenceOffset{ 0 }; // How far in the signature is the assembly reference
-      int ReferenceSize{ 0 }; // How many bytes is the assembly reference (usually 4, obsolete?)
-      int AddOffset{ 0 }; // How much bytes should be added to the final result
-
-      int Result;
+      std::unique_ptr<CompiledSig> Compiled;
+      int AddOffset{ 0 };
+      bool HasReference{ false };
+      int ReferenceSize{ 0 };
+      uintptr_t Result{ 0 };
 
       Signature(std::string const& sig, int offset = 0);
     };
@@ -75,6 +76,8 @@ namespace util
   bool IsPtrReadable(const void* ptr, size_t bytes = 1);
   // Returns true if [addr, addr+size) lies within the specified module's image range.
   bool IsAddressInModule(HMODULE hModule, const void* addr, size_t size);
+  // Returns true if the game appears to be a Steam build.
+  bool IsSteamBuild();
 
   namespace math
   {

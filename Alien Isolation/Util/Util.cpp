@@ -122,20 +122,25 @@ std::string util::KeyLparamToString(LPARAM lparam)
 
 BYTE util::CharToByte(char c)
 {
-  BYTE b;
-  sscanf_s(&c, "%hhx", &b);
-  return b;
+  if (c >= '0' && c <= '9')
+    return static_cast<BYTE>(c - '0');
+  if (c >= 'A' && c <= 'F')
+    return static_cast<BYTE>(10 + (c - 'A'));
+  if (c >= 'a' && c <= 'f')
+    return static_cast<BYTE>(10 + (c - 'a'));
+  return 0;
 }
 
 BOOL util::WriteMemory(DWORD_PTR dwAddress, const void* cpvPatch, DWORD dwSize)
 {
-  DWORD dwProtect;
-  if (VirtualProtect((void*)dwAddress, dwSize, PAGE_READWRITE, &dwProtect)) //Unprotect the memory
-    memcpy((void*)dwAddress, cpvPatch, dwSize); //Write our patch
-  else
-    return false; //Failed to unprotect, so return false..
+  DWORD oldProtect = 0;
+  if (!VirtualProtect(reinterpret_cast<LPVOID>(dwAddress), dwSize, PAGE_READWRITE, &oldProtect))
+    return FALSE;
 
-  return VirtualProtect((void*)dwAddress, dwSize, dwProtect, new DWORD); //Reprotect the memory
+  memcpy(reinterpret_cast<void*>(dwAddress), cpvPatch, dwSize);
+
+  DWORD unused = 0;
+  return VirtualProtect(reinterpret_cast<LPVOID>(dwAddress), dwSize, oldProtect, &unused);
 }
 
 bool util::IsPtrReadable(const void* ptr, size_t bytes)
@@ -167,5 +172,12 @@ bool util::IsAddressInModule(HMODULE hModule, const void* addr, size_t size)
   const uintptr_t a = reinterpret_cast<uintptr_t>(addr);
   const uintptr_t b = a + size;
   return (a >= base) && (b <= end);
+}
+
+bool util::IsSteamBuild()
+{
+  // simplest heuristic: Steam client dll present OR steam_api loaded by the game
+  return GetModuleHandleA("steam_api.dll") != nullptr
+      || GetModuleHandleA("steamclient.dll") != nullptr;
 }
 

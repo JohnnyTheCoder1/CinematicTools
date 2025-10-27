@@ -4,12 +4,17 @@
 #include "../AlienIsolation.h"
 #include <MinHook.h>
 #include <d3d11.h>
+#include <dxgi1_2.h>
 #include <DirectXMath.h>
 #include <unordered_map>
+#include <cstring>
 #include <Windows.h>
+
+#pragma comment(lib, "d3d11.lib")
 
 // Function definitions
 typedef HRESULT(__stdcall* tIDXGISwapChain_Present)(IDXGISwapChain*, UINT, UINT);
+typedef HRESULT(__stdcall* tIDXGISwapChain1_Present1)(IDXGISwapChain1*, UINT, UINT, const DXGI_PRESENT_PARAMETERS*);
 typedef BOOL(WINAPI* tSetCursorPos)(int, int);
 
 typedef int(__thiscall* tCameraUpdate)(CATHODE::AICameraManager*);
@@ -29,43 +34,92 @@ typedef bool(__thiscall* tCombatManagerUpdate)(void*, CATHODE::Character*);
 // on top, like the tools UI.
 
 tIDXGISwapChain_Present oIDXGISwapChain_Present = nullptr;
+tIDXGISwapChain1_Present1 oIDXGISwapChain1_Present1 = nullptr;
+
+namespace
+{
+  void HandlePresent(IDXGISwapChain* pSwapchain, UINT SyncInterval, UINT Flags)
+  {
+    static bool loggedDeviceFailure = false;
+    static bool loggedFirstPresent = false;
+    static bool loggedSwapChainCapture = false;
+
+    if (!loggedFirstPresent)
+    {
+      util::log::Write(">>> Present hook CALLED! pSwapchain=0x%p SyncInterval=%u Flags=%u", pSwapchain, SyncInterval, Flags);
+      loggedFirstPresent = true;
+    }
+
+    if (!g_dxgiSwapChain)
+      g_dxgiSwapChain = pSwapchain;
+
+    if (g_dxgiSwapChain == pSwapchain && !loggedSwapChainCapture)
+    {
+      util::log::Ok("Captured IDXGISwapChain from Present hook (0x%p)", g_dxgiSwapChain);
+      loggedSwapChainCapture = true;
+    }
+
+    if (!g_d3d11Device)
+    {
+      ID3D11Device* pDevice = nullptr;
+      HRESULT hr = pSwapchain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(&pDevice));
+      if (FAILED(hr))
+      {
+        if (!loggedDeviceFailure)
+        {
+          util::log::Warning("SwapChain::GetDevice failed while capturing interfaces, HRESULT 0x%X", hr);
+          loggedDeviceFailure = true;
+        }
+      }
+      else if (!pDevice)
+      {
+        if (!loggedDeviceFailure)
+        {
+          util::log::Warning("SwapChain::GetDevice succeeded but returned null device pointer");
+          loggedDeviceFailure = true;
+        }
+      }
+      else
+      {
+        g_d3d11Device = pDevice;
+        util::log::Ok("Captured ID3D11Device from Present hook (0x%p)", g_d3d11Device);
+      }
+    }
+
+    if (g_d3d11Device && !g_d3d11Context)
+    {
+      g_d3d11Device->GetImmediateContext(&g_d3d11Context);
+      if (g_d3d11Context)
+        util::log::Ok("Captured ID3D11DeviceContext from Present hook (0x%p)", g_d3d11Context);
+    }
+
+    if (!g_shutdown && g_mainHandle)
+    {
+      CTRenderer* pRenderer = g_mainHandle->GetRenderer();
+      UI* pUI = g_mainHandle->GetUI();
+      CameraManager* pCameraManager = g_mainHandle->GetCameraManager();
+
+      if (pRenderer && pRenderer->IsReady() && pUI && pUI->IsReady() && pCameraManager)
+      {
+        pUI->BindRenderTarget();
+        pRenderer->UpdateMatrices();
+        //g_mainHandle->GetCameraManager()->DrawTrack();
+        pUI->Draw();
+      }
+    }
+  }
+}
 
 HRESULT __stdcall hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncInterval, UINT Flags)
 {
-  static bool loggedDeviceFailure = false;
+  HandlePresent(pSwapchain, SyncInterval, Flags);
+  return oIDXGISwapChain_Present ? oIDXGISwapChain_Present(pSwapchain, SyncInterval, Flags) : S_OK;
+}
 
-  if (!g_dxgiSwapChain)
-    g_dxgiSwapChain = pSwapchain;
-
-  if (!g_d3d11Device)
-  {
-    HRESULT hr = pSwapchain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(&g_d3d11Device));
-    if (FAILED(hr) && !loggedDeviceFailure)
-    {
-      util::log::Warning("SwapChain::GetDevice failed while capturing interfaces, HRESULT 0x%X", hr);
-      loggedDeviceFailure = true;
-    }
-  }
-
-  if (g_d3d11Device && !g_d3d11Context)
-    g_d3d11Device->GetImmediateContext(&g_d3d11Context);
-
-  if (!g_shutdown && g_mainHandle)
-  {
-    CTRenderer* pRenderer = g_mainHandle->GetRenderer();
-    UI* pUI = g_mainHandle->GetUI();
-    CameraManager* pCameraManager = g_mainHandle->GetCameraManager();
-
-    if (pRenderer && pRenderer->IsReady() && pUI && pUI->IsReady() && pCameraManager)
-    {
-      pUI->BindRenderTarget();
-      pRenderer->UpdateMatrices();
-      //g_mainHandle->GetCameraManager()->DrawTrack();
-      pUI->Draw();
-    }
-  }
-
-  return oIDXGISwapChain_Present(pSwapchain, SyncInterval, Flags);
+HRESULT __stdcall hIDXGISwapChain1_Present1(IDXGISwapChain1* pSwapchain, UINT SyncInterval, UINT Flags, const DXGI_PRESENT_PARAMETERS* pPresentParameters)
+{
+  HandlePresent(pSwapchain, SyncInterval, Flags);
+  return oIDXGISwapChain1_Present1 ? oIDXGISwapChain1_Present1(pSwapchain, SyncInterval, Flags, pPresentParameters) : S_OK;
 }
 
 //////////////////////////
@@ -80,10 +134,10 @@ HRESULT __stdcall hIDXGISwapChain_Present(IDXGISwapChain* pSwapchain, UINT SyncI
 
 tCameraUpdate oCameraUpdate = nullptr;
 
-int __fastcall hCameraUpdate(CATHODE::AICameraManager* pCameraManager)
+int __fastcall hCameraUpdate(CATHODE::AICameraManager* pCameraManager, void* /*edx*/)
 {
   g_mainHandle->GetCameraManager()->OnCameraUpdateBegin();
-  int result = oCameraUpdate(pCameraManager);
+  int result = oCameraUpdate ? oCameraUpdate(pCameraManager) : 0;
   g_mainHandle->GetCameraManager()->OnCameraUpdateEnd();
   return result;
 }
@@ -97,16 +151,16 @@ tInputUpdate oInputUpdate = nullptr;
 tGamepadUpdate oGamepadUpdate = nullptr;
 tSetCursorPos oSetCursorPos = nullptr;
 
-int __fastcall hInputUpdate(void* _this)
+int __fastcall hInputUpdate(void* _this, void* /*edx*/)
 {
   CameraManager* pCameraManager = g_mainHandle->GetCameraManager();
   if (pCameraManager->IsCameraEnabled() && pCameraManager->IsKbmDisabled())
     return 0;
 
-  return oInputUpdate(_this);
+  return oInputUpdate ? oInputUpdate(_this) : 0;
 }
 
-int __fastcall hGamepadUpdate(void* _this)
+int __fastcall hGamepadUpdate(void* _this, void* /*edx*/)
 {
   CameraManager* pCameraManager = g_mainHandle->GetCameraManager();
   InputSystem* pInputSystem = g_mainHandle->GetInputSystem();
@@ -116,7 +170,7 @@ int __fastcall hGamepadUpdate(void* _this)
     && !pInputSystem->IsUsingSecondPad())
     return 0;
   
-  return oGamepadUpdate(_this);
+  return oGamepadUpdate ? oGamepadUpdate(_this) : 0;
 }
 
 BOOL WINAPI hSetCursorPos(int x, int y)
@@ -125,7 +179,7 @@ BOOL WINAPI hSetCursorPos(int x, int y)
   if (pUI && pUI->IsEnabled())
     return TRUE;
 
-  return oSetCursorPos(x, y);
+  return oSetCursorPos ? oSetCursorPos(x, y) : TRUE;
 }
 
 
@@ -143,13 +197,20 @@ tPostProcessUpdate oPostProcessUpdate = nullptr;
 tCombatManagerUpdate oCombatManagerUpdate = nullptr;
 tTonemapUpdate oTonemapUpdate = nullptr;
 
-int __fastcall hPostProcessUpdate(int _this)
+int __fastcall hPostProcessUpdate(int _this, void* /*edx*/)
 {
-  int result = oPostProcessUpdate(_this);
-
-  CATHODE::PostProcess* pPostProcess = reinterpret_cast<CATHODE::PostProcess*>(_this + 0x1918);
-  g_mainHandle->GetCameraManager()->OnPostProcessUpdate(pPostProcess);
-  g_mainHandle->GetVisualsController()->OnPostProcessUpdate(pPostProcess);
+  int result = oPostProcessUpdate ? oPostProcessUpdate(_this) : 0;
+  __try {
+    auto* pPostProcess = reinterpret_cast<CATHODE::PostProcess*>(_this + 0x1918);
+    if (util::IsPtrReadable(pPostProcess, sizeof(void*)))
+    {
+      g_mainHandle->GetCameraManager()->OnPostProcessUpdate(pPostProcess);
+      g_mainHandle->GetVisualsController()->OnPostProcessUpdate(pPostProcess);
+    }
+  } __except(EXCEPTION_EXECUTE_HANDLER) {
+    // skip on bad offset
+    util::log::Warning("Exception in hPostProcessUpdate, likely bad offset for PostProcess struct. Skipping update.");
+  }
   return result;
 }
 
@@ -162,12 +223,12 @@ bool __fastcall hCombatManagerUpdate(void* _this, void* _EDX, CATHODE::Character
       return false;
   }
 
-  return oCombatManagerUpdate(_this, pTargetChr);
+  return oCombatManagerUpdate ? oCombatManagerUpdate(_this, pTargetChr) : false;
 }
 
 char __stdcall hTonemapSettings(CATHODE::DayToneMapSettings* pTonemapSettings, int a2)
 {
-  char result = oTonemapUpdate(pTonemapSettings, a2);
+  char result = oTonemapUpdate ? oTonemapUpdate(pTonemapSettings, a2) : 0;
   g_mainHandle->GetVisualsController()->OnTonemapUpdate();
 
   return result;
@@ -315,13 +376,39 @@ static bool CreateDXGIPresentHook()
 
   if (FAILED(hr))
   {
+    hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_REFERENCE, nullptr, createFlags,
+      featureLevels, _countof(featureLevels), D3D11_SDK_VERSION, &desc, &pSwapChain, &pDevice, &obtainedLevel, &pContext);
+  }
+
+  if (FAILED(hr))
+  {
     util::log::Error("Failed to create dummy D3D11 device for Present hook, HRESULT 0x%X", hr);
     DestroyDummyWindow(hwnd);
     return false;
   }
 
   void** vtbl = *reinterpret_cast<void***>(pSwapChain);
+  util::log::Write("SwapChain vtable at 0x%p, Present at slot 8 is 0x%p", vtbl, vtbl[8]);
+  
   bool hookCreated = CreateHook("SwapChainPresent", (int)vtbl[8], hIDXGISwapChain_Present, &oIDXGISwapChain_Present);
+
+  if (hookCreated)
+  {
+    IDXGISwapChain1* pSwapChain1 = nullptr;
+    HRESULT qiHr = pSwapChain->QueryInterface(__uuidof(IDXGISwapChain1), reinterpret_cast<void**>(&pSwapChain1));
+    if (SUCCEEDED(qiHr) && pSwapChain1)
+    {
+      void** vtbl1 = *reinterpret_cast<void***>(pSwapChain1);
+      util::log::Write("SwapChain1 vtable at 0x%p, Present1 at slot 22 is 0x%p", vtbl1, vtbl1[22]);
+      if (CreateHook("SwapChainPresent1", (int)vtbl1[22], hIDXGISwapChain1_Present1, &oIDXGISwapChain1_Present1))
+        util::log::Ok("Installed DXGI Present1 hook via dummy device");
+      pSwapChain1->Release();
+    }
+    else
+    {
+      util::log::Warning("IDXGISwapChain1 interface unavailable for Present1 hook, HRESULT 0x%X", qiHr);
+    }
+  }
 
   pSwapChain->Release();
   pDevice->Release();
@@ -332,6 +419,7 @@ static bool CreateDXGIPresentHook()
     return false;
 
   g_presentHookCreated = true;
+  util::log::Ok("Installed DXGI Present hook via dummy device");
   return true;
 }
 
@@ -377,6 +465,11 @@ bool util::hooks::Init()
   return true;
 }
 
+bool util::hooks::IsPresentHookInstalled()
+{
+  return g_presentHookCreated;
+}
+
 void util::hooks::InstallGameHooks()
 {
   if (g_gameHooksInstalled)
@@ -384,6 +477,8 @@ void util::hooks::InstallGameHooks()
 
   if (!EnsureMinHookInitialized())
     return;
+
+  const bool isSteamBuild = util::IsSteamBuild();
 
   auto safeCreate = [](const char* name, const char* key, auto hook, auto original)
   {
@@ -393,15 +488,43 @@ void util::hooks::InstallGameHooks()
       util::log::Warning("Skipping hook %s: address 0x%X outside module image", name, addr);
       return;
     }
+
+    // Sanity check executable memory
+    MEMORY_BASIC_INFORMATION mbi{};
+    if (VirtualQuery((LPCVOID)addr, &mbi, sizeof(mbi)) && !(mbi.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE)))
+    {
+        util::log::Warning("Skipping hook %s: target 0x%X not in executable memory", name, addr);
+        return;
+    }
+
+    BYTE preview[6] = { 0 };
+    if (!util::IsPtrReadable(reinterpret_cast<void*>(addr), sizeof(preview)))
+    {
+      util::log::Warning("Skipping hook %s: target 0x%X unreadable", name, addr);
+      return;
+    }
+
+    memcpy(preview, reinterpret_cast<void*>(addr), sizeof(preview));
+    util::log::Write("Hook %s targeting 0x%X bytes %02X %02X %02X %02X %02X %02X", name, addr,
+      preview[0], preview[1], preview[2], preview[3], preview[4], preview[5]);
+
     CreateHook(name, addr, hook, original);
   };
 
-  safeCreate("CameraUpdate", "OFFSET_CAMERAUPDATE", hCameraUpdate, &oCameraUpdate);
-  //safeCreate("InputUpdate", "OFFSET_INPUTUPDATE", hInputUpdate, &oInputUpdate);
-  safeCreate("GamepadUpdate", "OFFSET_GAMEPADUPDATE", hGamepadUpdate, &oGamepadUpdate);
-  safeCreate("PostProcessUpdate", "OFFSET_POSTPROCESSUPDATE", hPostProcessUpdate, &oPostProcessUpdate);
-  safeCreate("TonemapUpdate", "OFFSET_TONEMAPUPDATE", hTonemapSettings, &oTonemapUpdate);
-  //CreateHook("AICombatManagerUpdate", util::offsets::GetOffset("OFFSET_COMBATMANAGERUPDATE"), hCombatManagerUpdate, &oCombatManagerUpdate);
+  if (isSteamBuild)
+  {
+    util::log::Write("Steam build detected, installing all gameplay hooks...");
+    safeCreate("CameraUpdate", "OFFSET_CAMERAUPDATE", hCameraUpdate, &oCameraUpdate);
+    //safeCreate("InputUpdate", "OFFSET_INPUTUPDATE", hInputUpdate, &oInputUpdate);
+    safeCreate("GamepadUpdate", "OFFSET_GAMEPADUPDATE", hGamepadUpdate, &oGamepadUpdate);
+    safeCreate("PostProcessUpdate", "OFFSET_POSTPROCESSUPDATE", hPostProcessUpdate, &oPostProcessUpdate);
+    safeCreate("TonemapUpdate", "OFFSET_TONEMAPUPDATE", hTonemapSettings, &oTonemapUpdate);
+    //CreateHook("AICombatManagerUpdate", util::offsets::GetOffset("OFFSET_COMBATMANAGERUPDATE"), hCombatManagerUpdate, &oCombatManagerUpdate);
+  }
+  else
+  {
+    util::log::Warning("Non-Steam build detected - skipping cinematic/gameplay hooks to avoid crashes. Overlay/UI only.");
+  }
 
   FARPROC setCursorProc = GetProcAddress(GetModuleHandleA("user32.dll"), "SetCursorPos");
   if (setCursorProc)

@@ -196,6 +196,9 @@ bool Main::Initialize()
     if (!g_d3d11Device || !g_d3d11Context || !g_dxgiSwapChain)
     {
       util::log::Error("Failed to capture DirectX interfaces via Present hook fallback");
+      util::log::Error("Present hook installed: %s | Device 0x%p | Context 0x%p | SwapChain 0x%p",
+        util::hooks::IsPresentHookInstalled() ? "yes" : "no",
+        g_d3d11Device, g_d3d11Context, g_dxgiSwapChain);
       return false;
     }
 
@@ -205,17 +208,9 @@ bool Main::Initialize()
   // This disables the object glow thing
   // Apply small byte patch, but only if target lies within module image
   {
-    BYTE GlowPatch[7] = { 0x80, 0xB9, 0x65, 0x70, 0x02, 0x00, 0x01 };
     void* patchAddr = (void*)((int)g_gameHandle + 0x3A3494);
-    if (util::IsAddressInModule(g_gameHandle, patchAddr, sizeof(GlowPatch)))
-    {
-      if (!util::WriteMemory((DWORD_PTR)patchAddr, GlowPatch, (DWORD)sizeof(GlowPatch)))
-        util::log::Warning("Glow patch VirtualProtect/WriteMemory failed at %p", patchAddr);
-    }
-    else
-    {
-      util::log::Warning("Skipping glow patch: address %p outside module image (possible version mismatch)", patchAddr);
-    }
+    if (util::IsAddressInModule(g_gameHandle, patchAddr, 7))
+      util::log::Warning("Skipping legacy glow patch at %p (offset 0x3A3494) to avoid version mismatch", patchAddr);
   }
 
   // Make timescale writable
@@ -235,7 +230,7 @@ bool Main::Initialize()
 
   // Retrieve game version and make a const variable for whatever version
   // the tools support. If versions mismatch, scan for offsets.
-  // util::offsets::Scan();
+  util::offsets::Scan();
 
   m_pRenderer = std::make_unique<CTRenderer>();
   if (!m_pRenderer->Initialize())

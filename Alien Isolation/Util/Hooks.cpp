@@ -7,6 +7,7 @@
 #include <dxgi1_2.h>
 #include <DirectXMath.h>
 #include <unordered_map>
+#include <cstring>
 #include <Windows.h>
 
 #pragma comment(lib, "d3d11.lib")
@@ -478,6 +479,18 @@ void util::hooks::InstallGameHooks()
       util::log::Warning("Skipping hook %s: address 0x%X outside module image", name, addr);
       return;
     }
+
+    BYTE preview[6] = { 0 };
+    if (!util::IsPtrReadable(reinterpret_cast<void*>(addr), sizeof(preview)))
+    {
+      util::log::Warning("Skipping hook %s: target 0x%X unreadable", name, addr);
+      return;
+    }
+
+    memcpy(preview, reinterpret_cast<void*>(addr), sizeof(preview));
+    util::log::Write("Hook %s targeting 0x%X bytes %02X %02X %02X %02X %02X %02X", name, addr,
+      preview[0], preview[1], preview[2], preview[3], preview[4], preview[5]);
+
     CreateHook(name, addr, hook, original);
   };
 

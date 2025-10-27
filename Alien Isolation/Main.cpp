@@ -208,17 +208,9 @@ bool Main::Initialize()
   // This disables the object glow thing
   // Apply small byte patch, but only if target lies within module image
   {
-    BYTE GlowPatch[7] = { 0x80, 0xB9, 0x65, 0x70, 0x02, 0x00, 0x01 };
     void* patchAddr = (void*)((int)g_gameHandle + 0x3A3494);
-    if (util::IsAddressInModule(g_gameHandle, patchAddr, sizeof(GlowPatch)))
-    {
-      if (!util::WriteMemory((DWORD_PTR)patchAddr, GlowPatch, (DWORD)sizeof(GlowPatch)))
-        util::log::Warning("Glow patch VirtualProtect/WriteMemory failed at %p", patchAddr);
-    }
-    else
-    {
-      util::log::Warning("Skipping glow patch: address %p outside module image (possible version mismatch)", patchAddr);
-    }
+    if (util::IsAddressInModule(g_gameHandle, patchAddr, 7))
+      util::log::Warning("Skipping legacy glow patch at %p (offset 0x3A3494) to avoid version mismatch", patchAddr);
   }
 
   // Make timescale writable

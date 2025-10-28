@@ -226,7 +226,7 @@ bool __fastcall hCombatManagerUpdate(void* _this, void* _EDX, CATHODE::Character
   return oCombatManagerUpdate ? oCombatManagerUpdate(_this, pTargetChr) : false;
 }
 
-char __thiscall hTonemapSettings(CATHODE::DayToneMapSettings* pTonemapSettings, int a2)
+char __fastcall hTonemapSettings(CATHODE::DayToneMapSettings* pTonemapSettings, void* /*edx*/, int a2)
 {
   char result = oTonemapUpdate ? oTonemapUpdate(pTonemapSettings, a2) : 0;
   g_mainHandle->GetVisualsController()->OnTonemapUpdate();

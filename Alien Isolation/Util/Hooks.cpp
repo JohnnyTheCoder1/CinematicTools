@@ -479,11 +479,18 @@ void util::hooks::InstallGameHooks()
     return;
 
   const bool isSteamBuild = util::IsSteamBuild();
+  util::log::Write("IsSteamBuild: %s", isSteamBuild ? "true" : "false");
 
   auto safeCreate = [](const char* name, const char* key, auto hook, auto original)
   {
     int addr = util::offsets::GetOffset(key);
-    if (!util::IsAddressInModule(g_gameHandle, (void*)addr, 16))
+    if (!addr)
+    {
+      util::log::Warning("Skipping hook %s: no scanned address for %s", name, key);
+      return;
+    }
+
+    if (!util::IsAddressInModule(g_gameHandle, reinterpret_cast<void*>(addr), 16))
     {
       util::log::Warning("Skipping hook %s: address 0x%X outside module image", name, addr);
       return;
@@ -513,7 +520,7 @@ void util::hooks::InstallGameHooks()
 
   if (isSteamBuild)
   {
-    util::log::Write("Steam build detected, installing all gameplay hooks...");
+    util::log::Write("Steam build detected, attempting to install gameplay hooks (resolved addresses only)...");
     safeCreate("CameraUpdate", "OFFSET_CAMERAUPDATE", hCameraUpdate, &oCameraUpdate);
     //safeCreate("InputUpdate", "OFFSET_INPUTUPDATE", hInputUpdate, &oInputUpdate);
     safeCreate("GamepadUpdate", "OFFSET_GAMEPADUPDATE", hGamepadUpdate, &oGamepadUpdate);

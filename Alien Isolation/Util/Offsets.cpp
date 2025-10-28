@@ -57,8 +57,18 @@ namespace
     for (size_t i = 0; i < sig.size();) {
       char c = sig[i];
       if (c == ' ') { ++i; continue; }
-      if (c == '[') { inRef = true; ++i; continue; }
-      if (c == ']') { inRef = false; ++i; continue; }
+      if (c == '[') {
+        if (!inRef && out.refStart < 0)
+          inRef = true;
+        ++i;
+        continue;
+      }
+      if (c == ']') {
+        if (inRef)
+          inRef = false;
+        ++i;
+        continue;
+      }
 
       if (c == '?') {
         // accept "?" or "??"
@@ -181,8 +191,8 @@ void util::offsets::Scan()
     "F3 0F 10 05 [ ?? ?? ?? ?? ] F3 0F 11 44 24 04 D9 44 24 04 C2 04 00 "
     "0F 57 C0 F3 0F 11 44 24 04 D9 44 24 04 C2 04 00 "
     "80 7C 24 08 00 74 0A "
-    "F3 0F 10 05 [ ?? ?? ?? ?? ] EB 08 "
-    "F3 0F 10 05 [ ?? ?? ?? ?? ] "
+    "F3 0F 10 05 ?? ?? ?? ?? EB 08 "
+    "F3 0F 10 05 ?? ?? ?? ?? "
     "8B 44 24 04 F6 44 08 14 80", 0));
 
   m_Signatures.emplace("OFFSET_COMBATMANAGERUPDATE", Signature(
@@ -269,32 +279,28 @@ void util::offsets::Scan()
 
   if (allFound && foundAny)
     util::log::Ok("All offsets found");
+  else if (foundAny)
+    util::log::Warning("Some offsets were not found; gameplay hooks will be skipped for missing entries");
   else
     util::log::Warning("All offsets could not be found, this might result in a crash");
 
-  m_UseScannedResults = (allFound && foundAny);
+  m_UseScannedResults = foundAny;
 }
 
 int util::offsets::GetOffset(std::string const& name)
 {
-  // If a scan was done, prefer those results.
-  // If something couldn't be found or there was no scan,
-  // use the hardcoded offsets.
-
+  // If a scan located any offsets, prefer those results.
   if (m_UseScannedResults)
   {
-    auto result = m_Signatures.find(name);
-    if (result != m_Signatures.end())
-    {
-      if (result->second.Result)
-        return static_cast<int>(result->second.Result);
-    }
+    auto it = m_Signatures.find(name);
+    if (it != m_Signatures.end() && it->second.Result)
+      return static_cast<int>(it->second.Result);
+
+    // Scanning is active but this key was not resolved; treat as missing.
+    return 0;
   }
 
-  // If the offsets were scanned, their absolute position is known.
-  // With hardcoded offsets, use relative offset because it's not
-  // 100% guaranteed the game module will load at the same address space.
-
+  // Fall back to hardcoded RVAs only when scanning yielded nothing.
   auto hardcodedResult = m_HardcodedOffsets.find(name);
   if (hardcodedResult != m_HardcodedOffsets.end())
   {
@@ -310,12 +316,11 @@ int util::offsets::GetRelOffset(std::string const& name)
 {
   if (m_UseScannedResults)
   {
-    auto result = m_Signatures.find(name);
-    if (result != m_Signatures.end())
-    {
-      if (result->second.Result)
-        return static_cast<int>(result->second.Result - reinterpret_cast<uintptr_t>(g_gameHandle));
-    }
+    auto it = m_Signatures.find(name);
+    if (it != m_Signatures.end() && it->second.Result)
+      return static_cast<int>(it->second.Result - reinterpret_cast<uintptr_t>(g_gameHandle));
+
+    return 0;
   }
 
   auto hardcodedResult = m_HardcodedOffsets.find(name);

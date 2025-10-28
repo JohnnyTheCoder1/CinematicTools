@@ -3,8 +3,13 @@
 
 #include <codecvt>
 #include <locale>
+#include <algorithm>
+#include <cctype>
+#include <cstring>
 #include <Psapi.h>
+#include <Shlwapi.h>
 #pragma comment(lib, "Psapi.lib")
+#pragma comment(lib, "Shlwapi.lib")
 
 namespace {
   // Helper to check if a memory page has readable protections
@@ -176,8 +181,35 @@ bool util::IsAddressInModule(HMODULE hModule, const void* addr, size_t size)
 
 bool util::IsSteamBuild()
 {
-  // simplest heuristic: Steam client dll present OR steam_api loaded by the game
-  return GetModuleHandleA("steam_api.dll") != nullptr
-      || GetModuleHandleA("steamclient.dll") != nullptr;
+  char exePath[MAX_PATH] = { 0 };
+  if (!GetModuleFileNameA(reinterpret_cast<HMODULE>(g_gameHandle), exePath, MAX_PATH))
+  {
+    // Fallback to module presence heuristics if we cannot resolve the path.
+    return GetModuleHandleA("steam_api.dll") != nullptr
+        || GetModuleHandleA("steamclient.dll") != nullptr;
+  }
+
+  char exeDir[MAX_PATH] = { 0 };
+  strcpy_s(exeDir, exePath);
+  PathRemoveFileSpecA(exeDir);
+
+  auto fileExists = [](const char* path) -> bool
+  {
+    DWORD attrs = GetFileAttributesA(path);
+    return (attrs != INVALID_FILE_ATTRIBUTES) && !(attrs & FILE_ATTRIBUTE_DIRECTORY);
+  };
+
+  std::string steamApi32 = std::string(exeDir) + "\\steam_api.dll";
+  std::string steamClient = std::string(exeDir) + "\\steamclient.dll";
+
+  if (fileExists(steamApi32.c_str()) || fileExists(steamClient.c_str()))
+    return true;
+
+  std::string exeLower = exePath;
+  std::transform(exeLower.begin(), exeLower.end(), exeLower.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+  if (exeLower.find("\\steamapps\\") != std::string::npos)
+    return true;
+
+  return false;
 }
 

@@ -34,14 +34,16 @@ namespace
     {"OFFSET_D3D", 0x17DF5CC},
     {"OFFSET_MAIN", 0x12F0C88},
 
-    {"OFFSET_CAMERAUPDATE", 0x32300},
+    // Function starts (AI.exe x86)
+    {"OFFSET_CAMERAUPDATE", 0x00421C0},
     {"OFFSET_GETCAMERAMATRIX", 0x5B0B40},
     {"OFFSET_POSTPROCESSUPDATE", 0x608C50},
-    {"OFFSET_TONEMAPUPDATE", 0x208490},
 
-    {"OFFSET_INPUTUPDATE", 0x57D6C0},
-    {"OFFSET_GAMEPADUPDATE", 0x60EE30},
-    {"OFFSET_COMBATMANAGERUPDATE", 0x37A800},
+    {"OFFSET_TONEMAPUPDATE", 0x00218400},
+
+  {"OFFSET_INPUTUPDATE", 0x0058D640},
+  {"OFFSET_GAMEPADUPDATE", 0x60EE30},
+  {"OFFSET_COMBATMANAGERUPDATE", 0x0038A740},
 
     {"OFFSET_SHOWMOUSE", 0x1359B44},
     {"OFFSET_DRAWUI", 0x1240F27},
@@ -214,10 +216,23 @@ void util::offsets::Scan()
     "8B 0D [ ?? ?? ?? ?? ] 85 C9 74 ?? 8B 01 FF 50 ??", 0));
 
   m_Signatures.emplace("OFFSET_FREEZETIME", Signature(
+    // legacy pattern; keep but also provide a timer-subss AOB below
     "F6 05 [ ?? ?? ?? ?? ] 00 75 ??", 0));
 
   m_Signatures.emplace("OFFSET_TIMESCALE", Signature(
     "F3 0F 10 05 [ ?? ?? ?? ?? ] F3 0F 59 ?? ??", 0));
+
+  // AOB: local mode timer subss (subss xmm0, [ecx+0x0C]) — useful for per-mode timer freeze
+  m_Signatures.emplace("AOB_TIMER_SUBSS", Signature(
+    "F3 0F 5C 41 0C", 0));
+
+  // AOB: global dt candidate — two movss [imm32] occurrences in same function
+  m_Signatures.emplace("AOB_GLOBAL_DT", Signature(
+    "F3 0F 10 0D [ ?? ?? ?? ?? ] ?? ?? ?? ?? F3 0F 10 0D [ ?? ?? ?? ?? ]", 0));
+
+  // AOB: player flag detection pattern used to gate player-specific logic
+  m_Signatures.emplace("AOB_PLAYER_FLAG", Signature(
+    "0F B7 86 3C 03 00 00 66 85 C0 75", 0));
 
   util::log::Write("Scanning for offsets...");
 

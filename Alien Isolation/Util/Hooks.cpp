@@ -22,7 +22,7 @@ typedef int(__thiscall* tInputUpdate)(void*);
 typedef int(__thiscall* tGamepadUpdate)(void*);
 
 typedef int(__thiscall* tPostProcessUpdate)(int);
-typedef char(__stdcall* tTonemapUpdate)(CATHODE::DayToneMapSettings*, int);
+typedef char(__thiscall* tTonemapUpdate)(CATHODE::DayToneMapSettings*, int);
 typedef bool(__thiscall* tCombatManagerUpdate)(void*, CATHODE::Character*);
 
 //////////////////////////
@@ -226,7 +226,7 @@ bool __fastcall hCombatManagerUpdate(void* _this, void* _EDX, CATHODE::Character
   return oCombatManagerUpdate ? oCombatManagerUpdate(_this, pTargetChr) : false;
 }
 
-char __stdcall hTonemapSettings(CATHODE::DayToneMapSettings* pTonemapSettings, int a2)
+char __thiscall hTonemapSettings(CATHODE::DayToneMapSettings* pTonemapSettings, int a2)
 {
   char result = oTonemapUpdate ? oTonemapUpdate(pTonemapSettings, a2) : 0;
   g_mainHandle->GetVisualsController()->OnTonemapUpdate();
